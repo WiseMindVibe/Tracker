@@ -1,6 +1,5 @@
 <?php
-require_once __DIR__ . '/affiliate_programs.php';
-require_once __DIR__ . '/websites.php';
+
 
 function getOffers() {
     $db = db();
@@ -44,13 +43,13 @@ function deleteOffer($id) {
     $db = db();
 
     // Check if article(s) exist
-    $stmtCheck = $db->prepare("SELECT COUNT(*) FROM offers_artlcle WHERE offer_id = ?");
+    $stmtCheck = $db->prepare("SELECT COUNT(*) FROM offers_artlcles WHERE offer_id = ?");
     $stmtCheck->execute([$id]);
     $exists = $stmtCheck->fetchColumn();
 
     if ($exists > 0) {
         // Delete articles
-        $stmtDel = $db->prepare("DELETE FROM offers_artlcle WHERE offer_id = ?");
+        $stmtDel = $db->prepare("DELETE FROM offers_artlcles WHERE offer_id = ?");
         $stmtDel->execute([$id]);
     }
 
@@ -70,25 +69,25 @@ function deleteOffer($id) {
 
 function getOfferArticles($offer_id) {
     $db = db();
-    $stmt = $db->prepare("SELECT * FROM offers_artlcle WHERE offer_id = ?");
+    $stmt = $db->prepare("SELECT * FROM offers_artlcles WHERE offer_id = ?");
     $stmt->execute([$offer_id]);
     return $stmt->fetchAll();
 }
 
 function addOfferArticle($offer_id, $article_url) {
     $db = db();
-    $stmt = $db->prepare("INSERT INTO offers_artlcle (offer_id, article_url) VALUES (?, ?)");
+    $stmt = $db->prepare("INSERT INTO offers_artlcles (offer_id, article_url) VALUES (?, ?)");
     return $stmt->execute([$offer_id, $article_url]);
 }
 
 function updateOfferArticle($id, $article_url) {
     $db = db();
-    $stmt = $db->prepare("UPDATE offers_artlcle SET article_url = ? WHERE id = ?");
+    $stmt = $db->prepare("UPDATE offers_artlcles SET article_url = ? WHERE id = ?");
     return $stmt->execute([$article_url, $id]);
 }
 
 function deleteOfferArticle($id) {
     $db = db();
-    $stmt = $db->prepare("DELETE FROM offers_artlcle WHERE id = ?");
+    $stmt = $db->prepare("DELETE FROM offers_artlcles WHERE id = ?");
     return $stmt->execute([$id]);
 }

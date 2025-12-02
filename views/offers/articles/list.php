@@ -28,7 +28,7 @@ $articles = getOfferArticles($offer_id);
             <?= htmlspecialchars($a['article_url']) ?>
         </a></td>
         <td>
-            <a href="edit.php?id=<?= $a['id'] ?>">Edit</a> |
+            <a href="edit.php?offer_id=<?= $offer_id ?>&id=<?= $a['id'] ?>">Edit</a> |
             <a href="delete.php?id=<?= $a['id'] ?>&offer_id=<?= $offer_id ?>" 
                onclick="return confirm('Delete this article?')">
                Delete

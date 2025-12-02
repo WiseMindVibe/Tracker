@@ -1,11 +1,12 @@
 <?php
 require "../../../src/bootstrap.php";
 
+$offer_id = $_GET['offer_id'] ?? null;
 $id = $_GET['id'] ?? null;
-if (!$id) die("Article ID missing.");
+if (!$offer_id || !$id) die("Article ID or offer ID missing.");
 
 $db = db();
-$stmt = $db->prepare("SELECT * FROM offers_artlcle WHERE id = ?");
+$stmt = $db->prepare("SELECT * FROM offers_artlcles WHERE id = ?");
 $stmt->execute([$id]);
 $article = $stmt->fetch();
 
@@ -17,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $article_url = $_POST['article_url'];
 
     if (updateOfferArticle($id, $article_url)) {
-        header("Location: edit.php?offer_id=" . $article['offer_id']);
+        header("Location: list.php?offer_id=" . $offer_id);
         exit;
     }
 }

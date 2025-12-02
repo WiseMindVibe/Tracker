@@ -4,7 +4,7 @@ function getAffiliatePrograms() {
     $db = db();
     $stmt = $db->query("SELECT * FROM affiliate_programs ORDER BY id DESC");
     return $stmt->fetchAll();
-}
+} 
 
 function getAffiliateProgram($id) {
     $db = db();

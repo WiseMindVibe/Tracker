@@ -28,7 +28,7 @@ try {
     die('Database connection failed: ' . $e->getMessage());
 }
 
-$base_url = getenv('BASE_URL') ?: 'http://localhost/track';
+$base_url = getenv('BASE_URL') ?: 'localhost/tracker';
 
 // Autoloader for src/
 spl_autoload_register(function ($class) {

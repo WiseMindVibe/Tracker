@@ -6,5 +6,5 @@ $website_id = $_GET['website_id'];
 
 deleteWebsiteBuffer($id);
 
-header("Location: buffers_list.php?id=$website_id");
+header("Location: list.php?id=$website_id");
 exit;

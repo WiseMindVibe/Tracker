@@ -1,12 +1,13 @@
 <?php
 require_once __DIR__ . "/../../src/bootstrap.php";
+include __DIR__ . "/../../includes/topbar.php";
 
 $websites = getWebsites();
 ?>
 
 <h2>Websites</h2>
 
-<a href="website_create.php">+ Add Website</a>
+<a href="create.php">+ Add Website</a>
 
 <table border="5" cellpadding="5">
     <tr>
@@ -24,12 +25,12 @@ $websites = getWebsites();
         <td><?= htmlspecialchars($website['country']) ?></td>
 
         <td>
-            <a href="buffers/buffers_list.php?id=<?= $website['id'] ?>">View Buffers</a>
+            <a href="buffers/list.php?id=<?= $website['id'] ?>">View Buffers</a>
         </td>
 
         <td>
-            <a href="website_edit.php?id=<?= $website['id'] ?>">Edit</a> |
-            <a href="website_delete.php?id=<?= $website['id'] ?>" onclick="return confirm('Delete this website?')">Delete</a>
+            <a href="edit.php?id=<?= $website['id'] ?>">Edit</a> |
+            <a href="delete.php?id=<?= $website['id'] ?>" onclick="return confirm('Delete this website?')">Delete</a>
         </td>
     </tr>
     <?php endforeach; ?>

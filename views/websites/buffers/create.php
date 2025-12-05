@@ -13,7 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $buffer_url = $_POST['buffer_url'];
 
     if (addWebsiteBuffer($website_id, $type, $buffer_url)) {
-        header("Location: buffers_list.php?id=$website_id");
+        header("Location: list.php?id=$website_id");
         exit;
     }
 }
@@ -32,4 +32,4 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </form>
 
 <br>
-<a href="buffers_list.php?id=<?= $website_id ?>">← Back</a>
+<a href="list.php?id=<?= $website_id ?>">← Back</a>

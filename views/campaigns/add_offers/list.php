@@ -1,5 +1,6 @@
 <?php
-require "../../../src/bootstrap.php";
+require_once __DIR__ . "/../../../src/bootstrap.php";
+include __DIR__ . "/../../../includes/topbar.php";
 
 $campaign_id = $_GET['cid'] ?? null;
 
@@ -18,26 +19,28 @@ $campaignOffers = getCampaignOffers($campaign_id);
     <tr>
         <th>ID</th>
         <th>Offer ID</th>
-        <th>Views</th>
+        <th>Current Views</th>
         <th>Max Views (Cap)</th>
         <th>Actions</th>
     </tr>
 
-    <?php foreach ($campaignOffers as $co): ?>
-    <tr>
-        <td><?= $co['id'] ?></td>
-        <td><?= htmlspecialchars($co['offer_id']) ?></td>
-        <td>0 - Placeholder</td>
-        <td><?= htmlspecialchars($co['cap']) ?></td>
-        <td>
-            <a href="edit.php?id=<?= $co['id'] ?>&cid=<?= $campaign_id ?>">Edit</a> |
-            <a href="delete.php?id=<?= $co['id'] ?>&cid=<?= $campaign_id ?>"
-               onclick="return confirm('Delete this offer mapping?')">
-               Delete
-            </a>
-        </td>
-    </tr>
-    <?php endforeach; ?>
+<?php foreach ($campaignOffers as $co): ?>
+<tr>
+    <td><?= $co['id'] ?></td>
+    <td><?= htmlspecialchars($co['offer_id']) ?></td>
+    <td><?= htmlspecialchars($co['current_views'] ?? 0) ?></td>
+    <td><?= htmlspecialchars($co['cap']) ?></td>
+    <td>
+        <a href="edit.php?id=<?= $co['id'] ?>&cid=<?= $campaign_id ?>">Edit</a> |
+        <a href="delete.php?id=<?= $co['id'] ?>&cid=<?= $campaign_id ?>"
+           onclick="return confirm('Delete this offer mapping?')">
+           Delete
+        </a>
+    </td>
+</tr>
+
+<?php endforeach; ?>
+
 </table>
 
 

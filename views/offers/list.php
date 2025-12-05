@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . "/../../src/bootstrap.php";
+include __DIR__ . "/../../includes/topbar.php";
 
 $offers = getOffers();
 ?>
@@ -25,7 +26,10 @@ $offers = getOffers();
         <td><?= $o['id'] ?></td>
         <td><?= htmlspecialchars($o['name']) ?></td>
         <td><?= htmlspecialchars($o['affiliate_name']) ?></td>
-        <td><a href="<?= htmlspecialchars($o['affiliate_link']) ?>" target="_blank">Link</a></td>
+        <td>
+            <?= htmlspecialchars($o['affiliate_link']) ?>
+            <button onclick="copyText('<?= htmlspecialchars($o['affiliate_link']) ?>')">Copy</button>
+        </td>
         <td><?= htmlspecialchars($o['country']) ?></td>
         <td><?= htmlspecialchars($o['website_domain']) ?></td>
         <td>
@@ -38,6 +42,13 @@ $offers = getOffers();
     </tr>
     <?php endforeach; ?>
 </table>
+
+<script>
+function copyText(text) {
+    navigator.clipboard.writeText(text);
+}
+</script>
+
 
 <br>
 <a href="../../views">← Back to Root</a>

@@ -1,5 +1,6 @@
 <?php
-require "../../../src/bootstrap.php";
+require_once __DIR__ . "/../../../src/bootstrap.php";
+include __DIR__ . "/../../../includes/topbar.php";
 
 $offer_id = $_GET['offer_id'] ?? null;
 

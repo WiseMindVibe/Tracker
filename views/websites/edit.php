@@ -13,7 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $country = $_POST['country'];
 
     if (updateWebsite($id, $domain, $country)) {
-        header("Location: website_list.php");
+        header("Location: list.php");
         exit;
     }
 }
@@ -32,4 +32,4 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </form>
 
 <br>
-<a href="website_list.php">← Back to list</a>
+<a href="list.php">← Back to list</a>

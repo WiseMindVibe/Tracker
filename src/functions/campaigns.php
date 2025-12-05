@@ -105,3 +105,52 @@ function deleteCampaignOffer($id) {
     $stmt = $db->prepare("DELETE FROM campaign_offers WHERE id = :id");
     return $stmt->execute(['id' => $id]);
 }
+
+function getOfferViews(int $campaignId, int $offerId, ?string $date = null): int {
+    $db = db();
+
+    // Default to today
+    $date = $date ?? date('Y-m-d');
+
+    $stmt = $db->prepare("
+        SELECT COUNT(*) 
+        FROM clicks
+        WHERE offer_id = :offer_id 
+          AND campaign_id = :campaign_id
+          AND DATE(created_at) = :date
+    ");
+    $stmt->execute([
+        ':offer_id'    => $offerId,
+        ':campaign_id' => $campaignId,
+        ':date'        => $date
+    ]);
+    return (int)$stmt->fetchColumn();
+}
+
+function getOfferViewsInCampaign($campaign_id) {
+    $stmt = db()->prepare("
+        SELECT SUM(current_views) 
+        FROM campaign_offers 
+        WHERE campaign_id = :cid
+    ");
+    $stmt->execute([
+        ':cid' => $campaign_id,
+    ]);
+
+    return $stmt->fetchColumn();
+}
+
+function getOfferCapInCampaign($campaign_id) {
+    $stmt = db()->prepare("
+        SELECT SUM(cap) 
+        FROM campaign_offers 
+        WHERE campaign_id = :cid
+    ");
+    $stmt->execute([
+        ':cid' => $campaign_id,
+    ]);
+
+    return $stmt->fetchColumn();
+}
+
+

@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . "/../../../src/bootstrap.php";
+include __DIR__ . "/../../../includes/topbar.php";
 
 $website_id = $_GET['id'];
 $website = getWebsite($website_id);
@@ -13,7 +14,7 @@ $buffers = getWebsiteBuffers($website_id);
 
 <h2>Buffers for: <?= htmlspecialchars($website['domain']) ?></h2>
 
-<a href="buffers_add.php?website_id=<?= $website_id ?>">+ Add Buffer</a>
+<a href="create.php?website_id=<?= $website_id ?>">+ Add Buffer</a>
 <br><br>
 
 <table border="1" cellpadding="6">
@@ -30,12 +31,12 @@ $buffers = getWebsiteBuffers($website_id);
         <td><?= htmlspecialchars($b['type']) ?></td>
         <td><?= htmlspecialchars($b['buffer_url']) ?></td>
         <td>
-            <a href="buffers_edit.php?id=<?= $b['id'] ?>&website_id=<?= $website_id ?>">Edit</a> |
-            <a href="buffers_delete.php?id=<?= $b['id'] ?>&website_id=<?= $website_id ?>" onclick="return confirm('Delete buffer?')">Delete</a>
+            <a href="edit.php?id=<?= $b['id'] ?>&website_id=<?= $website_id ?>">Edit</a> |
+            <a href="delete.php?id=<?= $b['id'] ?>&website_id=<?= $website_id ?>" onclick="return confirm('Delete buffer?')">Delete</a>
         </td>
     </tr>
     <?php endforeach; ?>
 </table>
 
 <br>
-<a href="../website_list.php">← Back to Websites</a>
+<a href="../list.php">← Back to Websites</a>

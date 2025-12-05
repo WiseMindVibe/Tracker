@@ -5,5 +5,5 @@ $id = $_GET['id'];
 
 deleteWebsite($id);
 
-header("Location: website_list.php");
+header("Location: list.php");
 exit;

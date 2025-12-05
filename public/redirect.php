@@ -6,9 +6,10 @@ require_once __DIR__ . '/../src/functions/log_redirect.php';
 // 1. Extract GET parameters
 // ==========================================
 
-$clickid    = isset($_GET['SUBID']) ? $_GET['SUBID'] :'Unknown';
+$clickid    = isset($_GET['SUBID']) ? $_GET['SUBID'] : null;
 $campaignId = isset($_GET['cid']) ? intval($_GET['cid']) : null;
-$country    = isset($_GET['country']) ? strtoupper(substr($_GET['country'], 0, 2)) : 'UN';
+$external_campaign_id = isset($_GET['campaign_id']) ? intval($_GET['campaign_id']) : null;
+$country    = isset($_GET['country']) ? $_GET['country'] : null;
 $os         = $_GET['os'] ?? 'Unknown';
 $browser    = $_GET['browser'] ?? 'Unknown';
 $connection_type = isset($_GET['connection_type']) ? $_GET['connection_type'] : 'Unknown';
@@ -31,7 +32,7 @@ if (!$campaign) {
 }
 
 // ==========================================
-// 3. Fetch offers in campaign
+// 3. Fetch offers in campaign/////////////////////////////////////////////////////////////////////
 // ==========================================
 $stmt = db()->prepare("
     SELECT 
@@ -55,46 +56,85 @@ if (!$offers) {
 }
 
 // ==========================================
-// 4. Cap checking and offer weighted selection
+// 4. Cap checking + balanced offer selection
 // ==========================================
+
+// Fetch campaign offers with cap + current_views
+$stmt = db()->prepare("
+    SELECT 
+        co.offer_id,
+        co.cap,
+        co.current_views,
+        o.name AS offer_name,
+        o.affiliate_link,
+        o.country,
+        o.affiliate_program_id,
+        o.website_id
+    FROM campaign_offers co
+    JOIN offers o ON o.id = co.offer_id
+    WHERE co.campaign_id = :cid
+");
+$stmt->execute([':cid' => $campaignId]);
+$offers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+if (!$offers) {
+    logRedirect($campaignId, "No offers in campaign", null);
+    exit("Error: No offers in this campaign");
+}
+
 $availableOffers = [];
-$totalRemaining = 0;
 
+// Check which offers are still valid (not fully capped)
 foreach ($offers as $offer) {
-    $stmt = db()->prepare("
-        SELECT COUNT(*) FROM clicks
-        WHERE offer_id = :offer_id AND campaign_id = :campaign_id
-    ");
-    $stmt->execute([
-        ':offer_id' => $offer['offer_id'],
-        ':campaign_id' => $campaignId
-    ]);
-
-    $used = $stmt->fetchColumn();
-    $remaining = $offer['cap'] - $used;
-
-    if ($remaining > 0) {
-        $offer['remaining'] = $remaining;
+    if ($offer['current_views'] < $offer['cap']) {
+        // Calculate fill %
+        $offer['fill_percent'] = $offer['current_views'] / $offer['cap'];
         $availableOffers[] = $offer;
-        $totalRemaining += $remaining;
     }
 }
 
+// If no offer available => everything capped
 if (empty($availableOffers)) {
-    logRedirect($campaignId, "Campaign cap reached", null);
-    exit("Error: Campaign cap reached");
+
+    // 🔥 Placeholder: Send stop request to PropellerAds
+    // replace later:
+    // sendStopCampaignToPropeller($campaignId);
+
+    logRedirect($campaignId, "All offers capped. Campaign stopped.", null);
+    exit("Error: All offers capped — traffic stopped");
 }
 
-// weighted selection
-$rand = rand(1, $totalRemaining);
-$current = 0;
-foreach ($availableOffers as $offer) {
-    $current += $offer['remaining'];
-    if ($rand <= $current) {
-        $selectedOffer = $offer;
-        break;
-    }
+// Sort offers by lowest fill percentage
+usort($availableOffers, function($a, $b) {
+    return $a['fill_percent'] <=> $b['fill_percent'];
+});
+
+// Select the offer with lowest fill %
+$selectedOffer = $availableOffers[0];
+
+// ======================
+// 10% Before-Cap Check
+// ======================
+$nearLimitThreshold = $selectedOffer['current_views'] * 1.10;
+
+if ($nearLimitThreshold >= $selectedOffer['cap']) {
+    // Redirect to fallback URL
+    header("Location: https://google.com");
+    exit;
 }
+
+// ==========================================
+// Increment current_views for selected offer
+// ==========================================
+$stmt = db()->prepare("
+    UPDATE campaign_offers 
+    SET current_views = current_views + 1
+    WHERE campaign_id = :cid AND offer_id = :oid
+");
+$stmt->execute([
+    ':cid' => $campaignId,
+    ':oid' => $selectedOffer['offer_id']
+]);
 
 // ==========================================
 // 5. Fetch buffer domains
@@ -151,28 +191,17 @@ $customAffiliateUrl = buildCustomAffiliateUrl(
     $clickId
 );
 
-// 👉 ADD COOKIE FOR WISE TO READ LATER
-setcookie(
-    'target_url',
-    $customAffiliateUrl,
-    time() + 10,
-    '/',
-    '.wisemindvibe.com',
-    true,
-    true
-    );
-
 // ==========================================
 // 9. Build final buffer URL
 // ==========================================
-$finalUrl = "https://" . $selectedBuffer['buffer_url'];
+$finalUrl = "https://" . $selectedBuffer['buffer_url'] . "?target_url=" . urlencode($customAffiliateUrl);
 
 // ==========================================
 // 10. Log click
 // ==========================================
 $stmt = db()->prepare("
     INSERT INTO clicks 
-        (click_id, offer_id, campaign_id, country, OS, brower, zone_id, cost, payout, ip)
+        (click_id, offer_id, campaign_id, country, OS, browser, zone_id, cost, payout, ip)
     VALUES 
         (:click_id, :offer_id, :campaign_id, :country, :os, :browser, :zone_id, :cost, 0, INET6_ATON(:ip))
 ");

@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . "/../../src/bootstrap.php";
+include __DIR__ . "/../../includes/topbar.php";
 
 $campaigns = getCampaigns();
 
@@ -28,9 +29,18 @@ $campaigns = getCampaigns();
         <td><?= $c['id'] ?></td>
         <td><?= htmlspecialchars($c['name']) ?></td>
         <td><?= htmlspecialchars($c['external_campaign_id']) ?></td>
-        <td></td>
+        <td>
+
+            <?= $views = getOfferViewsInCampaign($c['id']) ?? 0 ?>
+            /
+            <?= $cap = getOfferCapInCampaign($c['id']) ?? 0 ?>
+            - 
+            <?= number_format((($views / $cap) * 100), 2) ?? 0 ?>%
+
+        </td>
         <td><?= htmlspecialchars($c['country']) ?></td>
         <td><?= htmlspecialchars($c['traffic_source_name']) ?></td>
+        
         <td><?= htmlspecialchars(generateTrackingUrl($base_url, $c)) ?></td>
 
         <td>

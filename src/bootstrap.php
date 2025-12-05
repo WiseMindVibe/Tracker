@@ -42,9 +42,6 @@ spl_autoload_register(function ($class) {
 foreach (glob(__DIR__ . '/functions/*.php') as $filename) {
     require_once $filename;
 }
-foreach (glob(__DIR__ . '/../functions/*.php') as $filename) {
-    require_once $filename;
-}
 
 // Simple global function to access DB anywhere
 function db() {

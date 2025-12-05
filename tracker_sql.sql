@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Dec 01, 2025 at 10:55 PM
+-- Generation Time: Dec 05, 2025 at 09:20 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -61,7 +61,8 @@ CREATE TABLE `campaigns` (
 --
 
 INSERT INTO `campaigns` (`id`, `name`, `external_campaign_id`, `country`, `traffic_source_id`) VALUES
-(1, '1', 1, '1', 1);
+(1, '1t', 1, 'AF', 1),
+(3, '123', 123, 'AF', 1);
 
 -- --------------------------------------------------------
 
@@ -73,6 +74,7 @@ CREATE TABLE `campaign_offers` (
   `id` int(11) NOT NULL,
   `campaign_id` int(11) NOT NULL,
   `offer_id` int(11) NOT NULL,
+  `current_views` int(11) DEFAULT NULL,
   `cap` int(11) NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -80,8 +82,9 @@ CREATE TABLE `campaign_offers` (
 -- Dumping data for table `campaign_offers`
 --
 
-INSERT INTO `campaign_offers` (`id`, `campaign_id`, `offer_id`, `cap`) VALUES
-(1, 1, 1, 100);
+INSERT INTO `campaign_offers` (`id`, `campaign_id`, `offer_id`, `current_views`, `cap`) VALUES
+(3, 3, 1, 3, 3),
+(4, 1, 1, NULL, 3);
 
 -- --------------------------------------------------------
 
@@ -98,7 +101,7 @@ CREATE TABLE `clicks` (
   `payout` decimal(10,2) NOT NULL,
   `status` enum('Open','Confirmed','Paid','Rejected') DEFAULT NULL,
   `OS` varchar(50) NOT NULL,
-  `brower` varchar(50) NOT NULL,
+  `browser` varchar(50) NOT NULL,
   `zone_id` varchar(64) NOT NULL,
   `ip` varbinary(16) NOT NULL,
   `cost` decimal(10,2) NOT NULL,
@@ -110,8 +113,8 @@ CREATE TABLE `clicks` (
 -- Dumping data for table `clicks`
 --
 
-INSERT INTO `clicks` (`id`, `click_id`, `offer_id`, `campaign_id`, `country`, `payout`, `status`, `OS`, `brower`, `zone_id`, `ip`, `cost`, `created_at`, `updated_at`) VALUES
-(10, 'c692b55d59e3e36.95663579', 1, 1, 'UN', 0.00, NULL, 'Unknown', 'Unknown', 'default', 0x00000000000000000000000000000001, 0.00, '2025-11-29 20:21:41', '2025-11-29 20:21:41'),
+INSERT INTO `clicks` (`id`, `click_id`, `offer_id`, `campaign_id`, `country`, `payout`, `status`, `OS`, `browser`, `zone_id`, `ip`, `cost`, `created_at`, `updated_at`) VALUES
+(10, 'c692b55d59e3e36.95663579', 2, 1, 'UN', 0.00, NULL, 'Unknown', 'Unknown', 'default', 0x00000000000000000000000000000001, 0.00, '2025-11-29 20:21:41', '2025-12-04 05:53:34'),
 (11, 'c692b5616a9f930.73193426', 1, 1, 'UN', 0.00, NULL, 'Unknown', 'Unknown', 'default', 0x00000000000000000000000000000001, 0.00, '2025-11-29 20:22:46', '2025-11-29 20:22:46'),
 (12, 'c692b5674958d78.60040482', 1, 1, 'UN', 0.00, NULL, 'Unknown', 'Unknown', 'default', 0x00000000000000000000000000000001, 0.00, '2025-11-29 20:24:20', '2025-11-29 20:24:20'),
 (13, 'c692b56973d7f27.06268434', 1, 1, 'UN', 0.00, NULL, 'Unknown', 'Unknown', 'default', 0x00000000000000000000000000000001, 0.00, '2025-11-29 20:24:55', '2025-11-29 20:24:55'),
@@ -122,11 +125,11 @@ INSERT INTO `clicks` (`id`, `click_id`, `offer_id`, `campaign_id`, `country`, `p
 (18, 'c692b59342711b3.09560577', 1, 1, 'UN', 0.00, NULL, 'Unknown', 'Unknown', 'default', 0x00000000000000000000000000000001, 0.00, '2025-11-29 20:36:04', '2025-11-29 20:36:04'),
 (19, 'c692b59614b85b2.35577266', 1, 1, 'UN', 0.00, NULL, 'Unknown', 'Unknown', 'default', 0x00000000000000000000000000000001, 0.00, '2025-11-29 20:36:49', '2025-11-29 20:36:49'),
 (20, 'c692b5a1180de36.67978458', 1, 1, 'UN', 0.00, NULL, 'Unknown', 'Unknown', 'default', 0x00000000000000000000000000000001, 0.00, '2025-11-29 20:39:45', '2025-11-29 20:39:45'),
-(21, 'c692b5a27d56612.02595602', 1, 1, 'UN', 0.00, NULL, 'Unknown', 'Unknown', 'default', 0x00000000000000000000000000000001, 0.00, '2025-11-29 20:40:07', '2025-11-29 20:40:07'),
+(21, 'c692b5a27d56612.02595602', 1, 1, 'UN', 0.00, NULL, 'Unknown', 'Unknown', 'default', 0x00000000000000000000000000000001, 0.00, '2025-10-01 19:40:07', '2025-12-04 05:32:23'),
 (22, 'cid692d349c2b11c9.66274592', 1, 1, 'UN', 0.00, NULL, 'Unknown', 'Unknown', 'default', 0x00000000000000000000000000000001, 0.00, '2025-12-01 06:24:28', '2025-12-01 06:24:28'),
 (23, 'cid692d79b437f791.06530297', 1, 1, 'UN', 0.00, NULL, 'Unknown', 'Unknown', 'default', 0x00000000000000000000000000000001, 0.00, '2025-12-01 11:19:16', '2025-12-01 11:19:16'),
 (24, 'cid692d7d26dd93a7.34260853', 1, 1, 'UN', 0.00, NULL, 'Unknown', 'Unknown', 'default', 0x00000000000000000000000000000001, 0.00, '2025-12-01 11:33:58', '2025-12-01 11:33:58'),
-(25, 'cid692d7d7930c9a1.31939592', 1, 1, 'UN', 0.00, NULL, 'Unknown', 'Unknown', 'default', 0x00000000000000000000000000000001, 0.00, '2025-12-01 11:35:21', '2025-12-01 11:35:21'),
+(25, 'cid692d7d7930c9a1.31939592', 1, 1, 'GB', 1.00, 'Open', 'Unknown', 'Unknown', 'default', 0x00000000000000000000000000000001, 5.00, '2025-12-01 11:35:21', '2025-12-04 05:30:38'),
 (26, 'cid692d7e51575cd6.72772441', 1, 1, 'UN', 0.00, NULL, 'Unknown', 'Unknown', 'default', 0x00000000000000000000000000000001, 0.00, '2025-12-01 11:38:57', '2025-12-01 11:38:57'),
 (27, 'cid692d7f2e8f8904.31222034', 1, 1, 'UN', 0.00, NULL, 'Unknown', 'Unknown', 'default', 0x00000000000000000000000000000001, 0.00, '2025-12-01 11:42:38', '2025-12-01 11:42:38'),
 (28, 'cid692d7fc8e7ca27.68154586', 1, 1, 'UN', 0.00, NULL, 'Unknown', 'Unknown', 'default', 0x00000000000000000000000000000001, 0.00, '2025-12-01 11:45:12', '2025-12-01 11:45:12'),
@@ -137,7 +140,20 @@ INSERT INTO `clicks` (`id`, `click_id`, `offer_id`, `campaign_id`, `country`, `p
 (33, 'cid692d9b3236a708.65021148', 1, 1, 'UN', 0.00, NULL, 'Unknown', 'Unknown', 'default', 0x00000000000000000000000000000001, 0.00, '2025-12-01 13:42:10', '2025-12-01 13:42:10'),
 (34, 'cid692d9ba11b17f7.03957623', 1, 1, 'UN', 0.00, NULL, 'Unknown', 'Unknown', 'default', 0x00000000000000000000000000000001, 0.00, '2025-12-01 13:44:01', '2025-12-01 13:44:01'),
 (35, 'cid692d9bb5cf7b53.62103374', 1, 1, 'UN', 0.00, NULL, 'Unknown', 'Unknown', 'default', 0x00000000000000000000000000000001, 0.00, '2025-12-01 13:44:21', '2025-12-01 13:44:21'),
-(36, 'cid692d9c1100ef53.81824601', 1, 1, 'UN', 0.00, NULL, 'Unknown', 'Unknown', 'default', 0x00000000000000000000000000000001, 0.00, '2025-12-01 13:45:53', '2025-12-01 13:45:53');
+(36, 'cid692d9c1100ef53.81824601', 1, 1, 'UN', 0.00, NULL, 'Unknown', 'Unknown', 'default', 0x00000000000000000000000000000001, 0.00, '2025-12-01 13:45:53', '2025-12-01 13:45:53'),
+(37, 'cid692f3ba6c956a1.47828470', 1, 1, 'UN', 0.00, NULL, 'Unknown', 'Unknown', 'Unknown', 0x00000000000000000000000000000001, 0.00, '2025-12-02 19:19:02', '2025-12-02 19:19:02'),
+(38, 'cid692f4faea80f62.99584247', 1, 1, '{C', 0.00, NULL, '{os}', '{browser}', 'Unknown', 0x00000000000000000000000000000001, 0.00, '2025-12-02 20:44:30', '2025-12-02 20:44:30'),
+(39, 'cid692f521192e6f6.00737952', 1, 1, 'US', 1.00, NULL, 'IOS', 'Chorme', '123151', 0x00000000000000000000000000000001, 0.03, '2025-12-02 20:54:41', '2025-12-04 05:29:30'),
+(40, 'cid692f522e44f271.83288407', 1, 1, '{C', 0.00, NULL, '{os}', '{browser}', 'Unknown', 0x00000000000000000000000000000001, 0.00, '2025-12-02 20:55:10', '2025-12-02 20:55:10'),
+(41, 'cid6931f586aab685.32006168', 1, 1, '{C', 0.00, NULL, '{os}', '{browser}', 'Unknown', 0x00000000000000000000000000000001, 0.00, '2025-12-04 20:56:38', '2025-12-04 20:56:38'),
+(42, 'cid6931f5d89dabc2.97621604', 1, 1, '{C', 0.00, NULL, '{os}', '{browser}', 'Unknown', 0x00000000000000000000000000000001, 0.00, '2025-12-04 20:58:00', '2025-12-04 20:58:00'),
+(43, 'cid6931f5d9aa0f60.31534018', 1, 1, '{C', 0.00, NULL, '{os}', '{browser}', 'Unknown', 0x00000000000000000000000000000001, 0.00, '2025-12-04 20:58:01', '2025-12-04 20:58:01'),
+(44, 'cid6931f5f6c9d684.27154327', 2, 1, '{C', 0.00, NULL, '{os}', '{browser}', 'Unknown', 0x00000000000000000000000000000001, 0.00, '2025-12-04 20:58:30', '2025-12-04 20:58:30'),
+(45, 'cid693209659b2b55.24454119', 1, 3, 'UN', 0.00, NULL, 'Unknown', 'Unknown', 'Unknown', 0x00000000000000000000000000000001, 0.00, '2025-12-04 22:21:25', '2025-12-04 22:21:25'),
+(46, 'cid69329078a75850.95386227', 1, 3, '{c', 0.00, NULL, '{os}', '{browser}', 'Unknown', 0x00000000000000000000000000000001, 0.00, '2025-12-05 07:57:44', '2025-12-05 07:57:44'),
+(47, 'cid69329125ab6384.77300873', 1, 3, '{c', 0.00, NULL, '{os}', '{browser}', 'Unknown', 0x00000000000000000000000000000001, 0.00, '2025-12-05 08:00:37', '2025-12-05 08:00:37'),
+(48, 'cid69329496c39c84.69895365', 1, 3, '{c', 0.00, NULL, '{os}', '{browser}', 'Unknown', 0x00000000000000000000000000000001, 0.00, '2025-12-05 08:15:18', '2025-12-05 08:15:18'),
+(49, 'cid693294a3b27d76.93491190', 1, 3, '{c', 0.00, NULL, '{os}', '{browser}', 'Unknown', 0x00000000000000000000000000000001, 0.00, '2025-12-05 08:15:31', '2025-12-05 08:15:31');
 
 -- --------------------------------------------------------
 
@@ -159,7 +175,9 @@ CREATE TABLE `offers` (
 --
 
 INSERT INTO `offers` (`id`, `name`, `affiliate_program_id`, `affiliate_link`, `country`, `website_id`) VALUES
-(1, '1', 1, 'youtube.com', '1', 1);
+(1, '1', 1, 'youtube.com', '1', 1),
+(2, '1das', 2, 'https://example.com', 'WW', 1),
+(3, '123', 2, 'https://wisemindvibe.com', 'US', 1);
 
 -- --------------------------------------------------------
 
@@ -194,7 +212,8 @@ CREATE TABLE `postback_logs` (
 --
 
 INSERT INTO `postback_logs` (`id`, `status`, `reason`, `click_id`, `raw_query`, `ip`, `created_at`) VALUES
-(38, 'Missing parameters', 'click_id: , payout: , status: ', NULL, '[]', 0x00000000000000000000000000000001, '2025-12-01 21:14:39');
+(38, 'Missing parameters', 'click_id: , payout: , status: ', NULL, '[]', 0x00000000000000000000000000000001, '2025-12-01 21:14:39'),
+(39, 'Missing parameters', 'click_id: e015149eec1b0b506ad9c053d9be866e, payout: , status: open', 'e015149eec1b0b506ad9c053d9be866e', '{\"click_id\":\"e015149eec1b0b506ad9c053d9be866e\",\"status\":\"opEn\"}', 0x00000000000000000000000000000001, '2025-12-05 07:45:09');
 
 -- --------------------------------------------------------
 
@@ -227,7 +246,13 @@ INSERT INTO `redirect_logs` (`id`, `status`, `reason`, `campaign_id`, `raw_query
 (15, 'Campaign not found', NULL, '2', '{\"cid\":\"2\"}', 0x00000000000000000000000000000001, '2025-11-29 20:22:24'),
 (16, '', NULL, '1', '{\"cid\":\"1\"}', 0x00000000000000000000000000000001, '2025-11-29 20:24:36'),
 (17, '', NULL, '1', '{\"cid\":\"1\"}', 0x00000000000000000000000000000001, '2025-11-29 20:24:39'),
-(18, '', NULL, '1', '{\"cid\":\"1\"}', 0x00000000000000000000000000000001, '2025-11-29 20:39:32');
+(18, '', NULL, '1', '{\"cid\":\"1\"}', 0x00000000000000000000000000000001, '2025-11-29 20:39:32'),
+(19, '', NULL, '1', '{\"cid\":\"1\",\"clickid\":\"${SUBID}\",\"campaignid\":\"{campaignid}\",\"country\":\"{country}\",\"os\":\"{os}\",\"brows', 0x00000000000000000000000000000001, '2025-12-04 22:21:53'),
+(20, '', NULL, '3', '{\"cid\":\"3\",\"clickid\":\"${SUBID}\",\"campaignid\":\"{campaignid}\",\"country\":\"{country}\",\"os\":\"{os}\",\"brows', 0x00000000000000000000000000000001, '2025-12-05 08:02:44'),
+(21, '', NULL, '3', '{\"cid\":\"3\",\"clickid\":\"${SUBID}\",\"campaignid\":\"{campaignid}\",\"country\":\"{country}\",\"os\":\"{os}\",\"brows', 0x00000000000000000000000000000001, '2025-12-05 08:15:38'),
+(22, '', NULL, '3', '{\"cid\":\"3\",\"clickid\":\"${SUBID}\",\"campaignid\":\"{campaignid}\",\"country\":\"{country}\",\"os\":\"{os}\",\"brows', 0x00000000000000000000000000000001, '2025-12-05 08:16:30'),
+(23, '', NULL, '3', '{\"cid\":\"3\",\"clickid\":\"${SUBID}\",\"campaignid\":\"{campaignid}\",\"country\":\"{country}\",\"os\":\"{os}\",\"brows', 0x00000000000000000000000000000001, '2025-12-05 08:17:24'),
+(24, '', NULL, '3', '{\"cid\":\"3\",\"clickid\":\"${SUBID}\",\"campaignid\":\"{campaignid}\",\"country\":\"{country}\",\"os\":\"{os}\",\"brows', 0x00000000000000000000000000000001, '2025-12-05 08:17:29');
 
 -- --------------------------------------------------------
 
@@ -389,43 +414,43 @@ ALTER TABLE `affiliate_programs`
 -- AUTO_INCREMENT for table `campaigns`
 --
 ALTER TABLE `campaigns`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT for table `campaign_offers`
 --
 ALTER TABLE `campaign_offers`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT for table `clicks`
 --
 ALTER TABLE `clicks`
-  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=37;
+  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=50;
 
 --
 -- AUTO_INCREMENT for table `offers`
 --
 ALTER TABLE `offers`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT for table `offers_artlcles`
 --
 ALTER TABLE `offers_artlcles`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT for table `postback_logs`
 --
 ALTER TABLE `postback_logs`
-  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=39;
+  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=40;
 
 --
 -- AUTO_INCREMENT for table `redirect_logs`
 --
 ALTER TABLE `redirect_logs`
-  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=19;
+  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=25;
 
 --
 -- AUTO_INCREMENT for table `traffic_sources`
@@ -443,7 +468,7 @@ ALTER TABLE `websites`
 -- AUTO_INCREMENT for table `websites_buffers`
 --
 ALTER TABLE `websites_buffers`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- Constraints for dumped tables

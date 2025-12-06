@@ -16,6 +16,8 @@ $programs = getAffiliatePrograms();
         <th>API Key</th>
         <th>API Secret</th>
         <th>Actions</th>
+        <th>Created At</th>
+        <th>Updated At</th>
     </tr>
 
     <?php foreach ($programs as $p): ?>
@@ -34,6 +36,8 @@ $programs = getAffiliatePrograms();
             <a href="edit.php?id=<?= $p['id'] ?>">Edit</a> |
             <a href="delete.php?id=<?= $p['id'] ?>" onclick="return confirm('Delete this program?')">Delete</a>
         </td>
+        <td><?= htmlspecialchars($p['created_at']) ?></td>
+        <td><?= htmlspecialchars($p['updated_at']) ?></td>
     </tr>
     <?php endforeach; ?>
 </table>

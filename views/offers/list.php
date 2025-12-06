@@ -19,6 +19,8 @@ $offers = getOffers();
         <th>Website</th>
         <th>Articles</th>
         <th>Actions</th>
+        <th>Created At</th>
+        <th>Updated At</th>
     </tr>
 
     <?php foreach ($offers as $o): ?>
@@ -39,6 +41,8 @@ $offers = getOffers();
             <a href="edit.php?id=<?= $o['id'] ?>">Edit</a> |
             <a href="delete.php?id=<?= $o['id'] ?>" onclick="return confirm('Delete this offer?')">Delete</a>
         </td>
+        <td><?= htmlspecialchars($o['created_at']) ?></td>
+        <td><?= htmlspecialchars($o['updated_at']) ?></td>
     </tr>
     <?php endforeach; ?>
 </table>

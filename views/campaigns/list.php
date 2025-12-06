@@ -22,20 +22,27 @@ $campaigns = getCampaigns();
         <th>Traffic Source</th>
         <th>Tracking URL</th>
         <th>Actions</th>
+        <th>Created At</th>
+        <th>Updated At</th>
     </tr>
 
-    <?php foreach ($campaigns as $c): ?>
+    <?php foreach ($campaigns as $c): 
+        $external_campaigns = getExternalCampaignIds($c['id']);
+        ?>
     <tr>
         <td><?= $c['id'] ?></td>
         <td><?= htmlspecialchars($c['name']) ?></td>
-        <td><?= htmlspecialchars($c['external_campaign_id']) ?></td>
+        <td>
+            <?= htmlspecialchars(implode(", ", $external_campaigns)) ?>
+        </td>
         <td>
 
             <?= $views = getOfferViewsInCampaign($c['id']) ?? 0 ?>
             /
             <?= $cap = getOfferCapInCampaign($c['id']) ?? 0 ?>
             - 
-            <?= number_format((($views / $cap) * 100), 2) ?? 0 ?>%
+            <?= ($cap > 0) ? number_format(($views / $cap) * 100, 2) : '0.00' ?>%
+
 
         </td>
         <td><?= htmlspecialchars($c['country']) ?></td>
@@ -45,9 +52,11 @@ $campaigns = getCampaigns();
 
         <td>
             <a href="add_offers/list.php?cid=<?= $c['id'] ?>">Add Offers</a>
-            <a href="edit.php?id=<?= $c['id'] ?>">Edit</a> |
-            <a href="delete.php?id=<?= $c['id'] ?>" onclick="return confirm('Delete this campaign?')">Delete</a>
+            <a href="edit.php?cid=<?= $c['id'] ?>">Edit</a> |
+            <a href="delete.php?cid=<?= $c['id'] ?>" onclick="return confirm('Delete this campaign?')">Delete</a>
         </td>
+        <td><?= htmlspecialchars($c['created_at']) ?></td>
+        <td><?= htmlspecialchars($c['updated_at']) ?></td>
     </tr>
     <?php endforeach; ?>
 </table>

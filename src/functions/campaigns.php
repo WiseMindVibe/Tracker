@@ -18,14 +18,29 @@ function getCampaign($id) {
     return $stmt->fetch();
 }
 
-function addCampaign($name, $external_campaign_id, $country, $traffic_source_id) {
+function addCampaign($name, $country, $traffic_source_id) {
     $db = db();
     $stmt = $db->prepare("
-        INSERT INTO campaigns (name, external_campaign_id, country, traffic_source_id)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO campaigns (name, country, traffic_source_id)
+        VALUES (?, ?, ?)
     ");
-    return $stmt->execute([$name, $external_campaign_id, $country, $traffic_source_id]);
+    return $stmt->execute([$name, $country, $traffic_source_id]);
 }
+function addExternalCampaignId($campaign_id, $external_id) {
+    $db = db();
+    $stmt = $db->prepare("
+        INSERT INTO campaign_external_ids (campaign_id, external_campaign_id)
+        VALUES (?, ?)
+    ");
+    return $stmt->execute([$campaign_id, $external_id]);
+}
+function getExternalCampaignIds($campaign_id) {
+    $db = db();
+    $stmt = $db->prepare("SELECT external_campaign_id FROM campaign_external_ids WHERE campaign_id = ?");
+    $stmt->execute([$campaign_id]);
+    return $stmt->fetchAll(PDO::FETCH_COLUMN);
+}
+
 
 function updateCampaign($id, $name, $external_campaign_id, $country, $traffic_source_id) {
     $db = db();
@@ -39,17 +54,6 @@ function updateCampaign($id, $name, $external_campaign_id, $country, $traffic_so
 
 function deleteCampaign($id) {
     $db = db();
-
-    // Check if offer(s) exist
-    $stmtCheck = $db->prepare("SELECT COUNT(*) FROM campaign_offers WHERE campaign_id = ?");
-    $stmtCheck->execute([$id]);
-    $exists = $stmtCheck->fetchColumn();
-
-    if ($exists > 0) {
-        // Delete offer
-        $stmtDel = $db->prepare("DELETE FROM campaign_offers WHERE campaign_id = ?");
-        $stmtDel->execute([$id]);
-    }
 
     // Delete campaign
     $stmt2 = $db->prepare("DELETE FROM campaigns WHERE id = ?");
@@ -83,22 +87,21 @@ function getCampaignOffers($campaign_id) {
 }
 
 
-function updateCampaignOffer($id, $offer_id, $cap, $views) {
+function updateCampaignOffer($campaign_offer_id, $cap, $current_views) {
     $db = db();
     $stmt = $db->prepare("
         UPDATE campaign_offers
-        SET offer_id = :offer_id,
-            cap = :cap,
-            views = :views
+        SET cap = :cap,
+            current_views = :current_views
         WHERE id = :id
     ");
     return $stmt->execute([
-        'offer_id' => $offer_id,
-        'cap'      => $cap,
-        'views'    => $views,
-        'id'       => $id
+        ':cap' => $cap,
+        ':current_views' => $current_views,
+        ':id' => $campaign_offer_id
     ]);
 }
+
 
 function deleteCampaignOffer($id) {
     $db = db();

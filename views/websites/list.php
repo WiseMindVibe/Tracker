@@ -16,6 +16,8 @@ $websites = getWebsites();
         <th>Country</th>
         <th>Buffers</th>
         <th>Actions</th>
+        <th>Created At</th>
+        <th>Updated At</th>
     </tr>
 
     <?php foreach ($websites as $website): ?>
@@ -32,6 +34,8 @@ $websites = getWebsites();
             <a href="edit.php?id=<?= $website['id'] ?>">Edit</a> |
             <a href="delete.php?id=<?= $website['id'] ?>" onclick="return confirm('Delete this website?')">Delete</a>
         </td>
+        <td><?= htmlspecialchars($website['created_at']) ?></td>
+        <td><?= htmlspecialchars($website['updated_at']) ?></td>
     </tr>
     <?php endforeach; ?>
 

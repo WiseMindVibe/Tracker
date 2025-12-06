@@ -32,34 +32,10 @@ if (!$campaign) {
 }
 
 // ==========================================
-// 3. Fetch offers in campaign/////////////////////////////////////////////////////////////////////
-// ==========================================
-$stmt = db()->prepare("
-    SELECT 
-        o.id AS offer_id,
-        o.name AS offer_name,
-        o.affiliate_link,
-        o.country,
-        o.affiliate_program_id,
-        o.website_id,
-        co.cap
-    FROM campaign_offers co
-    JOIN offers o ON o.id = co.offer_id
-    WHERE co.campaign_id = :campaign_id
-");
-$stmt->execute([':campaign_id' => $campaignId]);
-$offers = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-if (!$offers) {
-    logRedirect($campaignId, "No offers in campaign", null);
-    exit("Error: No offers in this campaign");
-}
-
-// ==========================================
-// 4. Cap checking + balanced offer selection
+// 3+4. Fetch campaign offers + cap check + balanced selection
 // ==========================================
 
-// Fetch campaign offers with cap + current_views
+// Fetch campaign offers with cap and current_views
 $stmt = db()->prepare("
     SELECT 
         co.offer_id,
@@ -83,52 +59,48 @@ if (!$offers) {
 }
 
 $availableOffers = [];
+$allCapped = true;
 
 // Check which offers are still valid (not fully capped)
 foreach ($offers as $offer) {
-    if ($offer['current_views'] < $offer['cap']) {
-        // Calculate fill %
-        $offer['fill_percent'] = $offer['current_views'] / $offer['cap'];
+
+    $views = (int)($offer['current_views'] ?? 0);
+    $cap   = (int)$offer['cap'];
+
+    if ($views < $cap) {
+        $allCapped = false;
+        $offer['current_views'] = $views;
+        $offer['fill_percent'] = $views / $cap;
         $availableOffers[] = $offer;
     }
 }
 
-// If no offer available => everything capped
-if (empty($availableOffers)) {
 
-    // 🔥 Placeholder: Send stop request to PropellerAds
-    // replace later:
-    // sendStopCampaignToPropeller($campaignId);
+// If all offers are capped
+if ($allCapped) {
+    // 🔥 Placeholder: Stop campaign via traffic source API
+    // sendStopCampaignToTrafficSource($campaignId);
 
-    logRedirect($campaignId, "All offers capped. Campaign stopped.", null);
-    exit("Error: All offers capped — traffic stopped");
-}
-
-// Sort offers by lowest fill percentage
-usort($availableOffers, function($a, $b) {
-    return $a['fill_percent'] <=> $b['fill_percent'];
-});
-
-// Select the offer with lowest fill %
-$selectedOffer = $availableOffers[0];
-
-// ======================
-// 10% Before-Cap Check
-// ======================
-$nearLimitThreshold = $selectedOffer['current_views'] * 1.10;
-
-if ($nearLimitThreshold >= $selectedOffer['cap']) {
-    // Redirect to fallback URL
+    // Log redirect and send to Google
+    logRedirect($campaignId, "All offers capped. Traffic sent to Google.", null);
     header("Location: https://google.com");
     exit;
 }
 
-// ==========================================
+// Sort available offers by lowest fill percentage
+usort($availableOffers, function($a, $b) {
+    return $a['fill_percent'] <=> $b['fill_percent'];
+});
+
+// Pick one randomly among the top 50% least filled offers
+$halfIndex = ceil(count($availableOffers) / 2);
+$topOffers = array_slice($availableOffers, 0, $halfIndex);
+$selectedOffer = $topOffers[array_rand($topOffers)];
+
 // Increment current_views for selected offer
-// ==========================================
 $stmt = db()->prepare("
     UPDATE campaign_offers 
-    SET current_views = current_views + 1
+    SET current_views = COALESCE(current_views, 0) + 1
     WHERE campaign_id = :cid AND offer_id = :oid
 ");
 $stmt->execute([
@@ -192,9 +164,11 @@ $customAffiliateUrl = buildCustomAffiliateUrl(
 );
 
 // ==========================================
-// 9. Build final buffer URL
+// 9. Set cookies for root domain
 // ==========================================
-$finalUrl = "https://" . $selectedBuffer['buffer_url'] . "?target_url=" . urlencode($customAffiliateUrl);
+//setcookie('buffer_url', $selectedBuffer['buffer_url'], time() + 10, "/", ".wisemindvibe.com", true, true);
+setcookie('affiliate_url', $customAffiliateUrl, time() + 10, "/", ".wisemindvibe.com", true, true);
+//setcookie('visit_flag1', '1', time() + 10, "/", ".wisemindvibe.com", true, true);
 
 // ==========================================
 // 10. Log click
@@ -217,8 +191,20 @@ $stmt->execute([
     ':ip' => $ip
 ]);
 
+
 // ==========================================
-// 11. Redirect to buffer (t.co / fixed domain)
+// 11. Redirect to root domain
 // ==========================================
-header("Location: $finalUrl");
+$stmt = db()->prepare("SELECT domain FROM websites WHERE id = :wid LIMIT 1");
+$stmt->execute([':wid' => $selectedOffer['website_id']]);
+$websiteDomain = $stmt->fetchColumn();
+
+if (!$websiteDomain) exit("Website domain not found");
+
+// Redirect to root domain
+//header("Location: https://" . $selectedBuffer['buffer_url']);
+header("Location: " . $customAffiliateUrl);
 exit;
+
+
+

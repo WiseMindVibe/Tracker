@@ -22,6 +22,8 @@ $campaignOffers = getCampaignOffers($campaign_id);
         <th>Current Views</th>
         <th>Max Views (Cap)</th>
         <th>Actions</th>
+        <th>Created At</th>
+        <th>Updated At</th>
     </tr>
 
 <?php foreach ($campaignOffers as $co): ?>
@@ -31,12 +33,14 @@ $campaignOffers = getCampaignOffers($campaign_id);
     <td><?= htmlspecialchars($co['current_views'] ?? 0) ?></td>
     <td><?= htmlspecialchars($co['cap']) ?></td>
     <td>
-        <a href="edit.php?id=<?= $co['id'] ?>&cid=<?= $campaign_id ?>">Edit</a> |
+        <a href="edit.php?cid=<?= $campaign_id ?>&id=<?= $co['id'] ?>">Edit</a> |
         <a href="delete.php?id=<?= $co['id'] ?>&cid=<?= $campaign_id ?>"
            onclick="return confirm('Delete this offer mapping?')">
            Delete
         </a>
     </td>
+    <td><?= htmlspecialchars($co['created_at']) ?></td>
+    <td><?= htmlspecialchars($co['updated_at']) ?></td>
 </tr>
 
 <?php endforeach; ?>

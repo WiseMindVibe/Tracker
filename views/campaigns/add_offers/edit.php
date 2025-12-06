@@ -1,33 +1,45 @@
 <?php
 require "../../../src/bootstrap.php";
 
-$id = $_GET['id'] ?? null;
 $campaign_id = $_GET['cid'] ?? null;
+$campaign_offer_id = $_GET['id'] ?? null;
 
-if (!$id || !$campaign_id) die("Missing parameters.");
+if (!$campaign_id || !$campaign_offer_id) die("Missing parameters.");
 
-$offer = getCampaignOffers($id);
+// Get specific row
+$db = db();
+$stmt = $db->prepare("
+    SELECT *
+    FROM campaign_offers
+    WHERE id = :id AND campaign_id = :cid
+");
+$stmt->execute([
+    ':id' => $campaign_offer_id,
+    ':cid' => $campaign_id
+]);
+$offer = $stmt->fetch();
+
 if (!$offer) die("Offer mapping not found.");
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $offer_id = $_POST['offer_id'];
     $cap = $_POST['cap'];
-    $views = $_POST['views'];
+    $current_views = $_POST['current_views'];
 
-    updateCampaignOffer($id, $offer_id, $cap, $views);
+    updateCampaignOffer($campaign_offer_id, $cap, $current_views);
+
     header("Location: list.php?cid=" . $campaign_id);
     exit;
 }
 ?>
 
-<h2>Edit Campaign Offer</h2>
 
+<h2>Edit Campaign Offer</h2>
 <form method="POST">
     <label>Offer ID:</label><br>
-    <input type="number" name="offer_id" value="<?= $offer['offer_id'] ?>" required><br><br>
+    <input type="number" name="offer_id" value="<?= $offer['offer_id'] ?>" disabled><br><br>
 
-    <label>Views:</label><br>
-    <input type="number" name="views" value="<?= $offer['views'] ?>"><br><br>
+    <label>Views: ( DO NOT EDIT )</label><br>
+    <input type="number" name="current_views" value="<?= $offer['current_views'] ?>"><br><br>
 
     <label>Cap (max views):</label><br>
     <input type="number" name="cap" value="<?= $offer['cap'] ?>" required><br><br>

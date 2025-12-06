@@ -1,13 +1,14 @@
 <?php
 require_once __DIR__ . "/../../src/bootstrap.php";
 
-$campaign_id = $_GET['id'];
+$campaign_id = $_GET['cid'];
 $campaign = getCampaign($campaign_id);
 
 if (!$campaign) die("Campaign not found.");
 
 $traffic_sources = getTrafficSources();
 $countries = json_decode(file_get_contents(__DIR__ . '../../data/countries.json'), true);
+$external_campaigns = getExternalCampaignIds($campaign_id);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = $_POST['name'];
@@ -27,8 +28,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <form method="POST">
     <label>Name:</label><br>
     <input type="text" name="name" value="<?= htmlspecialchars($campaign['name']) ?>" required><br><br>
+    
     <label>External Campaign ID:</label><br>
-    <input type="text" name="external_campaign_id" value="<?= htmlspecialchars($campaign['external_campaign_id']) ?>" required><br><br>
+    <input type="text" name="external_campaign_id" value="<?= htmlspecialchars(implode(", ", $external_campaigns)) ?>" required><br><br>
+
     <label>Country:</label><br>
     <select name="country" required>
         <?php foreach($countries as $c): ?>

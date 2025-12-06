@@ -1,141 +1,170 @@
-<?php
-// src/functions/reporting.php
-// Pure functions: parseDateInput(), getReportData()
-
-/**
- * Convert browser datetime-local value (YYYY-MM-DDTHH:MM) into MySQL DATETIME string
- * Returns a string like "2025-12-03 14:30:00"
- */
-function parseDateInput(?string $raw, string $default): string {
-    if (!$raw) return $default;
-    // Accept a few formats: "YYYY-MM-DDTHH:MM", "YYYY-MM-DD HH:MM:SS", etc.
-    $raw = str_replace('T', ' ', $raw);
-    $ts = strtotime($raw);
-    if ($ts === false) return $default;
-    return date('Y-m-d H:i:s', $ts);
+<?php 
+function getOfferName($offer_id) {
+    $stmt = db()->prepare("SELECT name FROM offers WHERE id = ?");
+    $stmt->execute([$offer_id]);
+    return $stmt->fetchColumn() ?: "Unknown Offer";
 }
 
-/**
- * Fetch aggregated report rows grouped by offer -> campaign -> os -> browser.
- * Returns flat rows (PDO FETCH_ASSOC).
- */
-function getReportRows(string $startMysql, string $endMysql): array {
-    $db = db();
-
-    // Use JOIN because we only want offers that received clicks in range.
-    $sql = "
-    SELECT 
-        o.id AS offer_id,
-        o.name AS offer_name,
-        c.campaign_id,
-        COALESCE(NULLIF(TRIM(c.OS), ''), 'Unknown') AS os,
-        COALESCE(NULLIF(TRIM(c.browser), ''), 'Unknown') AS browser,
-
-        COUNT(c.id) AS clicks,
-        SUM(CASE WHEN c.status = 'converted' THEN 1 ELSE 0 END) AS conversions,
-        IFNULL(SUM(c.payout), 0) AS revenue,
-        IFNULL(SUM(c.cost), 0) AS cost
-
-    FROM clicks c
-    JOIN offers o ON o.id = c.offer_id
-    WHERE c.created_at BETWEEN ? AND ?
-    GROUP BY o.id, c.campaign_id, os, browser
-    ORDER BY o.id ASC, c.campaign_id ASC, os ASC, browser ASC
-    ";
-
-    $stmt = $db->prepare($sql);
-    $stmt->execute([$startMysql, $endMysql]);
-    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+function getCampaignName($campaign_id) {
+    $stmt = db()->prepare("SELECT name FROM campaigns WHERE id = ?");
+    $stmt->execute([$campaign_id]);
+    return $stmt->fetchColumn() ?: "Unknown Campaign";
 }
 
-/**
- * Build nested report array from flat rows:
- * [
- *  offerId => [
- *    'offer_name' => ..,
- *    'clicks' => ..,
- *    'revenue' => ..,
- *    'cost' => ..,
- *    'conversions' => ..,
- *    'campaigns' => [
- *      campaignId => [
- *        'clicks'=>.., 'revenue'=>.., 'cost'=>.., 'conversions'=>..,
- *        'os' => [ 'Android' => [ 'clicks'=>.., 'browsers' => [ 'Chrome'=>[...] ] ] ]
- *      ]
- *    ]
- *  ]
- * ]
- */
-function buildReport(array $rows): array {
-    $report = [];
+function getGroupedClicks($start, $end, $groups = []) {
 
-    foreach ($rows as $r) {
-        $offerId    = (int)$r['offer_id'];
-        $campaignId = $r['campaign_id'] === null ? '0' : (string)$r['campaign_id'];
-        $osName     = $r['os'] ?? 'Unknown';
-        $browser    = $r['browser'] ?? 'Unknown';
+    $sql = "SELECT * FROM clicks WHERE created_at >= :start AND created_at <= :end";
+    $stmt = db()->prepare($sql);
 
-        // Offer level
-        if (!isset($report[$offerId])) {
-            $report[$offerId] = [
-                'offer_name'  => $r['offer_name'],
-                'clicks'      => 0,
-                'revenue'     => 0.0,
-                'cost'        => 0.0,
-                'conversions' => 0,
-                'campaigns'   => [],
-            ];
+    $start_dt = $start . " 00:00:00";
+    $end_dt   = $end . " 23:59:59";
+
+    $stmt->execute([
+        ":start" => $start_dt,
+        ":end"   => $end_dt
+    ]);
+
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $final = [];
+
+    foreach ($rows as $row) {
+
+        // Fix: Replace IDs with names
+        $row['offer_name']    = getOfferName($row['offer_id']);
+        $row['campaign_name'] = getCampaignName($row['campaign_id']);
+
+        // Determine group keys
+        $keys = [];
+        foreach ($groups as $g) {
+            $keys[] = match($g) {
+                "offer"    => $row['offer_name'],
+                "campaign" => $row['campaign_name'],
+                "os"       => $row['OS'],
+                "browser"  => $row['browser'],
+                default    => $row[$g] ?? "Unknown",
+            };
         }
 
-        $report[$offerId]['clicks']      += (int)$r['clicks'];
-        $report[$offerId]['revenue']     += (float)$r['revenue'];
-        $report[$offerId]['cost']        += (float)$r['cost'];
-        $report[$offerId]['conversions'] += (int)$r['conversions'];
-
-        // Campaign level
-        if (!isset($report[$offerId]['campaigns'][$campaignId])) {
-            $report[$offerId]['campaigns'][$campaignId] = [
-                'clicks'      => 0,
-                'revenue'     => 0.0,
-                'cost'        => 0.0,
-                'conversions' => 0,
-                'os'          => [],
-            ];
+        // Insert into nested structure
+        $ref =& $final;
+        foreach ($keys as $k) {
+            if (!isset($ref[$k])) {
+                $ref[$k] = [
+                    "_stats" => [
+                        "clicks" => 0,
+                        "conversions" => 0,
+                        "revenue" => 0,
+                        "cost" => 0,
+                        "profit" => 0,
+                        "cr" => 0,
+                        "roi" => 0,
+                        "reject_rate" => 0
+                    ]
+                ];
+            }
+            $ref =& $ref[$k];
         }
-        $report[$offerId]['campaigns'][$campaignId]['clicks']      += (int)$r['clicks'];
-        $report[$offerId]['campaigns'][$campaignId]['revenue']     += (float)$r['revenue'];
-        $report[$offerId]['campaigns'][$campaignId]['cost']        += (float)$r['cost'];
-        $report[$offerId]['campaigns'][$campaignId]['conversions'] += (int)$r['conversions'];
 
-        // OS level
-        if (!isset($report[$offerId]['campaigns'][$campaignId]['os'][$osName])) {
-            $report[$offerId]['campaigns'][$campaignId]['os'][$osName] = [
-                'clicks'      => 0,
-                'revenue'     => 0.0,
-                'cost'        => 0.0,
-                'conversions' => 0,
-                'browsers'    => [],
-            ];
+        // Update stats
+        $ref["_stats"]["clicks"]++;
+        if (in_array($row["status"], ["open","confirmed","paid"])) {  
+            $ref["_stats"]["conversions"]++;
+            $ref["_stats"]["revenue"] += $row["payout"];
         }
-        $report[$offerId]['campaigns'][$campaignId]['os'][$osName]['clicks']      += (int)$r['clicks'];
-        $report[$offerId]['campaigns'][$campaignId]['os'][$osName]['revenue']     += (float)$r['revenue'];
-        $report[$offerId]['campaigns'][$campaignId]['os'][$osName]['cost']        += (float)$r['cost'];
-        $report[$offerId]['campaigns'][$campaignId]['os'][$osName]['conversions'] += (int)$r['conversions'];
 
-        // Browser level
-        if (!isset($report[$offerId]['campaigns'][$campaignId]['os'][$osName]['browsers'][$browser])) {
-            $report[$offerId]['campaigns'][$campaignId]['os'][$osName]['browsers'][$browser] = [
-                'clicks'      => 0,
-                'revenue'     => 0.0,
-                'cost'        => 0.0,
-                'conversions' => 0,
-            ];
-        }
-        $report[$offerId]['campaigns'][$campaignId]['os'][$osName]['browsers'][$browser]['clicks']      += (int)$r['clicks'];
-        $report[$offerId]['campaigns'][$campaignId]['os'][$osName]['browsers'][$browser]['revenue']     += (float)$r['revenue'];
-        $report[$offerId]['campaigns'][$campaignId]['os'][$osName]['browsers'][$browser]['cost']        += (float)$r['cost'];
-        $report[$offerId]['campaigns'][$campaignId]['os'][$osName]['browsers'][$browser]['conversions'] += (int)$r['conversions'];
+        $ref["_stats"]["cost"] += $row["cost"];
+        $ref["_stats"]["profit"] = $ref["_stats"]["revenue"] - $ref["_stats"]["cost"];
     }
 
-    return $report;
+    // After all rows → compute CR, ROI, reject rate
+    computeStatsRecursive($final);
+
+    return $final;
 }
+
+
+function computeStatsRecursive(&$arr) {
+    foreach ($arr as $k => &$v) {
+        if ($k === "_stats") continue;
+
+        computeStatsRecursive($v);
+
+        $s = &$v["_stats"];
+
+        $s["cr"] = $s["clicks"] > 0 ? round(($s["conversions"] / $s["clicks"]) * 100, 2) : 0;
+
+        $s["roi"] = $s["cost"] > 0 
+            ? round(($s["profit"] / $s["cost"]) * 100, 2)
+            : 0;
+
+        // Reject rate → percentage of non-conversions
+        $s["reject_rate"] = $s["clicks"] > 0
+            ? round((($s["clicks"] - $s["conversions"]) / $s["clicks"]) * 100, 2)
+            : 0;
+    }
+}
+
+// Assume $groupedClicks = getGroupedClicks($start, $end, $selectedGroups);
+function renderGroupedRows($data, $parentId = null, $level = 0, &$counter = 1) {
+    foreach ($data as $key => $value) {
+        if ($key === "_stats") continue;
+
+        $id = $counter++;
+        $childKeys = array_filter(array_keys($value), fn($k) => $k !== "_stats");
+        $hasChildren = !empty($childKeys);
+
+        // Compute aggregated stats only for display
+        $displayStats = $value["_stats"];
+        if ($hasChildren) {
+            $agg = [
+                "clicks" => 0,
+                "conversions" => 0,
+                "revenue" => 0,
+                "cost" => 0,
+                "profit" => 0,
+            ];
+
+            foreach ($childKeys as $childKey) {
+                $childStats = $value[$childKey]["_stats"];
+                $agg["clicks"] += $childStats["clicks"];
+                $agg["conversions"] += $childStats["conversions"];
+                $agg["revenue"] += $childStats["revenue"];
+                $agg["cost"] += $childStats["cost"];
+                $agg["profit"] += $childStats["profit"];
+            }
+
+            $agg["cr"] = $agg["clicks"] > 0 ? round(($agg["conversions"] / $agg["clicks"]) * 100, 2) : 0;
+            $agg["roi"] = $agg["cost"] > 0 ? round(($agg["profit"] / $agg["cost"]) * 100, 2) : 0;
+            $agg["reject_rate"] = $agg["clicks"] > 0 ? round((($agg["clicks"] - $agg["conversions"]) / $agg["clicks"]) * 100, 2) : 0;
+
+            $displayStats = $agg;
+        }
+
+        // Render parent/child row
+        echo '<tr class="' . ($level === 0 ? 'group-row' : 'child-row hidden') . '" '
+            . ($parentId ? "data-parent='$parentId'" : '')
+            . " data-level='$level' data-id='$id'>";
+
+        echo "<td style='padding-left: " . ($level*30) . "px;'>";
+        if ($hasChildren) echo '<span class="arrow">▶</span> ';
+        echo htmlspecialchars($key) . "</td>";
+
+        echo "<td>{$displayStats['clicks']}</td>";
+        echo "<td>{$displayStats['conversions']}</td>";
+        echo "<td>$" . number_format($displayStats['cost'],2) . "</td>";
+        echo "<td>$" . number_format($displayStats['revenue'],2) . "</td>";
+        echo "<td>$" . number_format($displayStats['profit'],2) . "</td>";
+        echo "<td>{$displayStats['roi']}%</td>";
+        echo "<td>{$displayStats['cr']}%</td>";
+        echo "<td>{$displayStats['reject_rate']}%</td>";
+        echo "</tr>";
+
+        // Recursive render for children
+        renderGroupedRows($value, $id, $level+1, $counter);
+    }
+}
+
+?>
+
+

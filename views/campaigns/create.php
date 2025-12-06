@@ -7,11 +7,22 @@ $countries = json_decode(file_get_contents(__DIR__ . '/../data/countries.json'),
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = $_POST['name'];
-    $external_campaign_id = $_POST['external_campaign_id'];
+    $external_ids_raw = trim($_POST['external_campaign_id']);
     $country = $_POST['country'];
     $traffic_source_id = $_POST['traffic_source_id'];
 
-    if (addCampaign($name, $external_campaign_id, $traffic_source_id, $country)) {
+    // Create the internal campaign
+    if (addCampaign($name, $country, $traffic_source_id)) {
+        
+        $campaign_id = db()->lastInsertId();
+
+        // Split external IDs by line
+        $external_ids = array_filter(array_map('trim', explode("\n", $external_ids_raw)));
+
+        foreach ($external_ids as $id) {
+            addExternalCampaignId($campaign_id, $id);
+        }
+
         header("Location: list.php");
         exit;
     }
@@ -23,9 +34,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <form method="POST">
     <label>Name:</label><br>
     <input type="text" name="name" required><br><br>
-    
-    <label>External Campaign ID:</label><br>
-    <input type="text" name="external_campaign_id" required><br><br>
+
+    <label>External Campaign IDs (one per line):</label><br>
+    <textarea name="external_campaign_id" rows="3" required></textarea><br><br>
+
     
     <label>Country:</label><br>
     <select name="country" >

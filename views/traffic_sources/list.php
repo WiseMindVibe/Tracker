@@ -15,6 +15,8 @@ $traffic_sources = getTrafficSources();
         <th>Name</th>
         <th>API Key</th>
         <th>Actions</th>
+        <th>Created At</th>
+        <th>Updated At</th>
     </tr>
 
     <?php foreach ($traffic_sources as $t): ?>
@@ -29,6 +31,8 @@ $traffic_sources = getTrafficSources();
             <a href="edit.php?id=<?= $t['id'] ?>">Edit</a> |
             <a href="delete.php?id=<?= $t['id'] ?>" onclick="return confirm('Delete this traffic source?')">Delete</a>
         </td>
+        <td><?= htmlspecialchars($t['created_at']) ?></td>
+        <td><?= htmlspecialchars($t['updated_at']) ?></td>
     </tr>
     <?php endforeach; ?>
 </table>

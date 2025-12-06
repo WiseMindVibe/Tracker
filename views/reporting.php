@@ -1,160 +1,174 @@
 <?php
-// reporting.php  (controller)
-require_once __DIR__ . '/../src/bootstrap.php';
-include __DIR__ . "/../includes/topbar.php";
+require_once "../src/bootstrap.php";
+include "../includes/topbar.php";
 
-// parse incoming values (datetime-local returns YYYY-MM-DDTHH:MM)
-$rawStart = $_GET['start'] ?? null;
-$rawEnd   = $_GET['end']   ?? null;
+$start = $_GET['start'] ?? date("Y-m-d");
+$end   = $_GET['end']   ?? date("Y-m-d");
 
-// defaults: last 30 days
-$defaultStart = date('Y-m-d 00:00:00', strtotime('-30 days'));
-$defaultEnd   = date('Y-m-d 23:59:59');
+// Define possible grouping options
+$availableGroups = ["offer", "campaign", "os", "browser"];
 
-// convert to MySQL datetime (seconds appended)
-$start = parseDateInput($rawStart, $defaultStart);
-$end   = parseDateInput($rawEnd,   $defaultEnd);
+// Get selected groups from GET, default: offer + campaign
+$selectedGroups = $_GET['groups'] ?? ["offer","campaign"];
 
-// fetch rows and build nested report
-$rows = getReportRows($start, $end);
-$report = buildReport($rows);
-
-
-// views/reporting.php  — expects $report, $start, $end from controller
-// Convert datetimes back to "datetime-local" format for form values
-function toDatetimeLocal(string $dt): string {
-    $t = strtotime($dt);
-    if ($t === false) return '';
-    return date('Y-m-d\TH:i', $t);
-}
 ?>
-<!doctype html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>Reporting — Offer → Campaign → OS → Browser</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<style>
-  :root{--bg:#f6f7fb;--card:#fff;--muted:#666;--accent:#1f8feb}
-  body{font-family:Inter,Segoe UI,Arial,sans-serif;background:var(--bg);margin:0;padding:18px;color:#222}
-  h1{margin:0 0 14px 0;font-size:20px}
-  .controls{display:flex;gap:10px;align-items:center;margin-bottom:12px}
-  .card{background:var(--card);border-radius:8px;padding:10px;box-shadow:0 1px 2px rgba(0,0,0,0.05)}
-  .offer{background:#e6ffef;border-left:4px solid #2ecc71;padding:10px;margin:8px 0;cursor:pointer}
-  .campaign{background:#eef7ff;border-left:4px solid var(--accent);padding:8px;margin:6px 12px;cursor:pointer}
-  .os{background:#fafafa;padding:8px;margin:6px 24px;cursor:pointer;border-left:3px solid #ddd}
-  .browser{background:#fff;padding:8px;margin:6px 36px;border-left:1px solid #eee}
-  .meta{font-size:13px;color:var(--muted);margin-left:8px}
-  .numbers{font-weight:600;margin-left:8px}
-  .muted{color:var(--muted);font-size:13px;margin-top:6px}
-  form input{padding:6px;border-radius:4px;border:1px solid #ddd}
-  button{padding:7px 10px;border-radius:6px;border:none;background:var(--accent);color:#fff;cursor:pointer}
-  @media (max-width:720px){ .controls{flex-direction:column;align-items:flex-start} }
-</style>
 
-<script>
-function toggleId(id){
-  const el = document.getElementById(id);
-  if(!el) return;
-  el.style.display = el.style.display === 'none' || el.style.display === '' ? 'block' : 'none';
-}
-</script>
+<form method="GET" style="margin-bottom:20px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+    <label>Start Date:</label>
+    <input type="date" name="start" value="<?= htmlspecialchars($start) ?>" required>
+    <label>End Date:</label>
+    <input type="date" name="end" value="<?= htmlspecialchars($end) ?>" required>
+
+    <label>Group By:</label>
+    <?php foreach ($availableGroups as $group): ?>
+        <label style="margin-right:10px;">
+            <input type="checkbox" name="groups[]" value="<?= $group ?>" 
+                <?= in_array($group, $selectedGroups) ? "checked" : "" ?>>
+            <?= ucfirst($group) ?>
+        </label>
+    <?php endforeach; ?>
+
+    <button type="submit" style="padding:5px 15px; background:#007bff; color:white; border:none; border-radius:4px; cursor:pointer;">
+        Apply
+    </button>
+</form>
+
+
+    <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Reporting</title>
+    <style>
+        body {
+            background: #111;
+            color: #eee;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .card {
+            background: #1a1a1a;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.4);
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            margin-top: 0;
+        }
+
+        .filters {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .filter-block {
+            display: flex;
+            flex-direction: column;
+        }
+
+        select, input[type=date] {
+            padding: 8px 10px;
+            border-radius: 8px;
+            border: 1px solid #444;
+            background: #222;
+            color: #ddd;
+        }
+
+        .table-container {
+            margin-top: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        th, td {
+            padding: 12px;
+            border-bottom: 1px solid #333;
+        }
+
+        th {
+            background: #222;
+            font-weight: bold;
+            text-align: left;
+        }
+
+        tr.group-row {
+            background: #181818;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        tr.group-row:hover {
+            background: #222;
+        }
+
+        .arrow {
+            display: inline-block;
+            transition: transform 0.2s ease;
+            margin-right: 8px;
+        }
+
+        .arrow.expanded {
+            transform: rotate(90deg);
+        }
+
+        tr.hidden {
+            display: none;
+        }
+    </style>
 </head>
 <body>
-  <h1>Reporting</h1>
+    <div class="card table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Clicks</th>
+                    <th>Conversions</th>
+                    <th>Spent</th>
+                    <th>Revenue</th>
+                    <th>Profit</th>
+                    <th>ROI</th>
+                    <th>CR</th>
+                    <th>Reject Rate</th>
+                </tr>
+            </thead>
 
-  <div class="card controls">
-    <form method="GET" style="display:flex;gap:8px;align-items:center">
-      <label>Start</label>
-      <input type="datetime-local" name="start" value="<?= htmlspecialchars(toDatetimeLocal($start)) ?>">
-      <label>End</label>
-      <input type="datetime-local" name="end" value="<?= htmlspecialchars(toDatetimeLocal($end)) ?>">
-      <button type="submit">Apply</button>
-      <button type="button" onclick="location.href='reporting.php'">Reset</button>
-    </form>
-    <div class="muted">Showing clicks between <strong><?= htmlspecialchars($start) ?></strong> and <strong><?= htmlspecialchars($end) ?></strong></div>
-  </div>
+<tbody id="reportBody">
+<?php
+$groupedClicks = getGroupedClicks($start, $end, $selectedGroups);
 
-  <?php if (empty($report)): ?>
-    <div class="card muted" style="margin-top:12px">No clicks found in this date range.</div>
-  <?php else: ?>
-    <?php foreach ($report as $offerId => $offer):
-        $offerDom = "offer_{$offerId}";
-        $offerProfit = $offer['revenue'] - $offer['cost'];
-        $offerCr = $offer['clicks'] ? ($offer['conversions'] / $offer['clicks'] * 100) : 0;
-        $offerRoi = $offer['cost'] ? ($offerProfit / $offer['cost'] * 100) : 0;
-    ?>
-      <div class="offer" onclick="toggleId('<?= $offerDom ?>')">
-        <strong><?= htmlspecialchars($offer['offer_name']) ?></strong>
-        <span class="meta">Clicks: <span class="numbers"><?= $offer['clicks'] ?></span></span>
-        <span class="meta">Conv: <span class="numbers"><?= $offer['conversions'] ?></span></span>
-        <span class="meta">Revenue: <span class="numbers">$<?= number_format($offer['revenue'],2) ?></span></span>
-        <span class="meta">Cost: <span class="numbers">$<?= number_format($offer['cost'],2) ?></span></span>
-        <span class="meta">Profit: <span class="numbers">$<?= number_format($offerProfit,2) ?></span></span>
-        <span class="meta">CR: <span class="numbers"><?= number_format($offerCr,2) ?>%</span></span>
-        <span class="meta">ROI: <span class="numbers"><?= number_format($offerRoi,2) ?>%</span></span>
-      </div>
+$counter = 1; // ensure unique IDs across recursion
 
-      <div id="<?= $offerDom ?>" style="display:none">
-        <?php foreach ($offer['campaigns'] as $campId => $camp):
-            $campDom = "{$offerDom}_camp_{$campId}";
-            $campProfit = $camp['revenue'] - $camp['cost'];
-            $campCr = $camp['clicks'] ? ($camp['conversions'] / $camp['clicks'] * 100) : 0;
-            $campRoi = $camp['cost'] ? ($campProfit / $camp['cost'] * 100) : 0;
-        ?>
-          <div class="campaign" onclick="toggleId('<?= $campDom ?>')">
-            <strong>Campaign:</strong> <?= htmlspecialchars($campId) ?>
-            <span class="meta">Clicks: <span class="numbers"><?= $camp['clicks'] ?></span></span>
-            <span class="meta">Conv: <span class="numbers"><?= $camp['conversions'] ?></span></span>
-            <span class="meta">Revenue: <span class="numbers">$<?= number_format($camp['revenue'],2) ?></span></span>
-            <span class="meta">Cost: <span class="numbers">$<?= number_format($camp['cost'],2) ?></span></span>
-            <span class="meta">Profit: <span class="numbers">$<?= number_format($campProfit,2) ?></span></span>
-            <span class="meta">CR: <span class="numbers"><?= number_format($campCr,2) ?>%</span></span>
-            <span class="meta">ROI: <span class="numbers"><?= number_format($campRoi,2) ?>%</span></span>
-          </div>
 
-          <div id="<?= $campDom ?>" style="display:none">
-            <?php foreach ($camp['os'] as $osName => $osData):
-                $osDom = "{$campDom}_os_" . preg_replace('/[^a-z0-9_]/i','_',$osName);
-                $osProfit = $osData['revenue'] - $osData['cost'];
-                $osCr = $osData['clicks'] ? ($osData['conversions'] / $osData['clicks'] * 100) : 0;
-                $osRoi = $osData['cost'] ? ($osProfit / $osData['cost'] * 100) : 0;
-            ?>
-              <div class="os" onclick="toggleId('<?= $osDom ?>')">
-                <strong>OS:</strong> <?= htmlspecialchars($osName) ?>
-                <span class="meta">Clicks: <span class="numbers"><?= $osData['clicks'] ?></span></span>
-                <span class="meta">Conv: <span class="numbers"><?= $osData['conversions'] ?></span></span>
-                <span class="meta">Revenue: <span class="numbers">$<?= number_format($osData['revenue'],2) ?></span></span>
-                <span class="meta">Cost: <span class="numbers">$<?= number_format($osData['cost'],2) ?></span></span>
-                <span class="meta">Profit: <span class="numbers">$<?= number_format($osProfit,2) ?></span></span>
-                <span class="meta">CR: <span class="numbers"><?= number_format($osCr,2) ?>%</span></span>
-                <span class="meta">ROI: <span class="numbers"><?= number_format($osRoi,2) ?>%</span></span>
-              </div>
 
-              <div id="<?= $osDom ?>" style="display:none">
-                <?php foreach ($osData['browsers'] as $brName => $brData):
-                    $brProfit = $brData['revenue'] - $brData['cost'];
-                    $brCr = $brData['clicks'] ? ($brData['conversions'] / $brData['clicks'] * 100) : 0;
-                ?>
-                  <div class="browser">
-                    <strong>Browser:</strong> <?= htmlspecialchars($brName) ?>
-                    <span class="meta">Clicks: <span class="numbers"><?= $brData['clicks'] ?></span></span>
-                    <span class="meta">Conv: <span class="numbers"><?= $brData['conversions'] ?></span></span>
-                    <span class="meta">Revenue: <span class="numbers">$<?= number_format($brData['revenue'],2) ?></span></span>
-                    <span class="meta">Cost: <span class="numbers">$<?= number_format($brData['cost'],2) ?></span></span>
-                    <span class="meta">Profit: <span class="numbers">$<?= number_format($brProfit,2) ?></span></span>
-                    <span class="meta">CR: <span class="numbers"><?= number_format($brCr,2) ?>%</span></span>
-                  </div>
-                <?php endforeach; ?>
-              </div>
+renderGroupedRows($groupedClicks, null, 0, $counter);
+?>
+</tbody>
 
-            <?php endforeach; ?>
-          </div>
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    document.querySelectorAll('tr.group-row, tr.child-row').forEach(row => {
+        row.addEventListener('click', function(e) {
+            const arrow = row.querySelector('.arrow');
+            if (!arrow) return; // skip rows without children
 
-        <?php endforeach; ?>
-      </div>
+            const id = row.dataset.id;
+            const children = document.querySelectorAll(`tr[data-parent='${id}']`);
+            arrow.classList.toggle('expanded');
+            children.forEach(c => c.classList.toggle('hidden'));
+        });
+    });
+});
+</script>
 
-    <?php endforeach; ?>
-  <?php endif; ?>
-</body>
-</html>

@@ -59,7 +59,10 @@ function getGroupedClicks($start, $end, $groups = []) {
                         "profit" => 0,
                         "cr" => 0,
                         "roi" => 0,
-                        "reject_rate" => 0
+                        "reject_rate" => 0,
+                        "approved_statuses" => 0,
+                        "rejected" => 0,
+                        "total_statuses" => 0,
                     ]
                 ];
             }
@@ -68,20 +71,37 @@ function getGroupedClicks($start, $end, $groups = []) {
 
         // Update stats
         $ref["_stats"]["clicks"]++;
-        if (in_array($row["status"], ["open","confirmed","paid"])) {  
+
+        $status = strtolower($row["status"]);
+
+        // Count total statuses (open, confirmed, paid, rejected)
+        if (in_array($status, ["open", "confirmed", "paid", "rejected"])) {
+            $ref["_stats"]["total_statuses"]++;
+        }
+
+        // Count approved statuses (open + confirmed + paid)
+        if (in_array($status, ["open", "confirmed", "paid"])) {
+            $ref["_stats"]["approved_statuses"]++;
+        }
+
+        // Count rejected
+        if ($status === "rejected") {
+            $ref["_stats"]["rejected"]++;
+        }
+
+        // Actual conversions: only confirmed & paid
+        if (in_array($status, ["confirmed", "paid"])) {
             $ref["_stats"]["conversions"]++;
             $ref["_stats"]["revenue"] += $row["payout"];
         }
 
-        $ref["_stats"]["cost"] += $row["cost"];
-        $ref["_stats"]["profit"] = $ref["_stats"]["revenue"] - $ref["_stats"]["cost"];
     }
-
     // After all rows → compute CR, ROI, reject rate
     computeStatsRecursive($final);
 
     return $final;
 }
+
 
 
 function computeStatsRecursive(&$arr) {
@@ -99,9 +119,12 @@ function computeStatsRecursive(&$arr) {
             : 0;
 
         // Reject rate → percentage of non-conversions
-        $s["reject_rate"] = $s["clicks"] > 0
-            ? round((($s["clicks"] - $s["conversions"]) / $s["clicks"]) * 100, 2)
+        $s["reject_rate"] = ($s["total_statuses"] > 0)
+            ? round(($s["rejected"] / $s["total_statuses"]) * 100, 2)
             : 0;
+
+
+
     }
 }
 
@@ -117,29 +140,19 @@ function renderGroupedRows($data, $parentId = null, $level = 0, &$counter = 1) {
         // Compute aggregated stats only for display
         $displayStats = $value["_stats"];
         if ($hasChildren) {
-            $agg = [
-                "clicks" => 0,
-                "conversions" => 0,
-                "revenue" => 0,
-                "cost" => 0,
-                "profit" => 0,
-            ];
+    $agg = computeFullAggregate($value);
 
-            foreach ($childKeys as $childKey) {
-                $childStats = $value[$childKey]["_stats"];
-                $agg["clicks"] += $childStats["clicks"];
-                $agg["conversions"] += $childStats["conversions"];
-                $agg["revenue"] += $childStats["revenue"];
-                $agg["cost"] += $childStats["cost"];
-                $agg["profit"] += $childStats["profit"];
-            }
+    // compute CR, ROI, Reject rate
+    $agg["cr"] = $agg["clicks"] > 0 ? round(($agg["conversions"] / $agg["clicks"]) * 100, 2) : 0;
+    $agg["roi"] = $agg["cost"] > 0 ? round(($agg["profit"] / $agg["cost"]) * 100, 2) : 0;
+    $agg["reject_rate"] = ($agg["total_statuses"] > 0)
+    ? round(($agg["rejected"] / $agg["total_statuses"]) * 100, 2)
+    : ($agg['rejected'] > 0 ? 100 : 0);
 
-            $agg["cr"] = $agg["clicks"] > 0 ? round(($agg["conversions"] / $agg["clicks"]) * 100, 2) : 0;
-            $agg["roi"] = $agg["cost"] > 0 ? round(($agg["profit"] / $agg["cost"]) * 100, 2) : 0;
-            $agg["reject_rate"] = $agg["clicks"] > 0 ? round((($agg["clicks"] - $agg["conversions"]) / $agg["clicks"]) * 100, 2) : 0;
 
-            $displayStats = $agg;
-        }
+    $displayStats = $agg;
+}
+
 
         // Render parent/child row
         echo '<tr class="' . ($level === 0 ? 'group-row' : 'child-row hidden') . '" '
@@ -164,6 +177,39 @@ function renderGroupedRows($data, $parentId = null, $level = 0, &$counter = 1) {
         renderGroupedRows($value, $id, $level+1, $counter);
     }
 }
+function computeFullAggregate($node) {
+    $total = [
+    "clicks" => 0,
+    "conversions" => 0,
+    "revenue" => 0,
+    "cost" => 0,
+    "profit" => 0,
+"approved_statuses" => 0,
+"rejected" => 0,
+"total_statuses" => 0,
+
+];
+
+
+    foreach ($node as $key => $value) {
+        if ($key === "_stats") {
+            // add this node's own stats
+            foreach ($total as $k => $v) {
+                $total[$k] += $value[$k];
+            }
+        } else {
+            // recursively aggregate children
+            $childAgg = computeFullAggregate($value);
+            foreach ($total as $k => $v) {
+                $total[$k] += $childAgg[$k];
+            }
+        }
+    }
+
+    
+    return $total;
+}
+
 
 ?>
 

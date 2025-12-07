@@ -2,8 +2,8 @@
 require_once "../src/bootstrap.php";
 include "../includes/topbar.php";
 
-$start = $_GET['start'] ?? date("Y-m-d");
-$end   = $_GET['end']   ?? date("Y-m-d");
+$start = $_GET['start'] ?? date("d-m-y");
+$end   = $_GET['end']   ?? date("d-m-y");
 
 // Define possible grouping options
 $availableGroups = ["offer", "campaign", "os", "browser"];

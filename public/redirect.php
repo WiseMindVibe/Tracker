@@ -76,13 +76,34 @@ foreach ($offers as $offer) {
 }
 
 
-// If all offers are capped
-if ($allCapped) {
-    // 🔥 Placeholder: Stop campaign via traffic source API
-    // sendStopCampaignToTrafficSource($campaignId);
+    // If all offers are capped
+    if ($allCapped) {
+        // 🔥 Placeholder: Stop campaign via traffic source API
+        // sendStopCampaignToTrafficSource($campaignId);
 
-    // Log redirect and send to Google
-    logRedirect($campaignId, "All offers capped. Traffic sent to Google.", null);
+        // Fetch traffic source associated with the campaign
+    $stmt = db()->prepare("
+        SELECT traffic_source_id, external_campaign_id
+        FROM campaigns 
+        WHERE id = :id
+    ");
+    $stmt->execute([':id' => $campaignId]);
+    $cdata = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($cdata && $cdata['traffic_source_id'] && $cdata['external_campaign_id']) {
+
+        stopTrafficSourceCampaign(
+            $cdata['traffic_source_id'],
+            $cdata['external_campaign_id']
+        );
+
+        logRedirect($campaignId, "Campaign capped → traffic source paused", null);
+
+    } else {
+        logRedirect($campaignId, "Campaign capped but no traffic source settings found", null);
+    }
+
+    // Redirect backup
     header("Location: https://google.com");
     exit;
 }

@@ -54,6 +54,7 @@ $campaigns = getCampaigns();
             <a href="add_offers/list.php?cid=<?= $c['id'] ?>">Add Offers</a>
             <a href="edit.php?cid=<?= $c['id'] ?>">Edit</a> |
             <a href="delete.php?cid=<?= $c['id'] ?>" onclick="return confirm('Delete this campaign?')">Delete</a>
+            <input type="checkbox" disabled <?= $c['tester'] ? 'checked' : '' ?>>
         </td>
         <td><?= htmlspecialchars($c['created_at']) ?></td>
         <td><?= htmlspecialchars($c['updated_at']) ?></td>

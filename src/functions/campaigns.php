@@ -18,13 +18,13 @@ function getCampaign($id) {
     return $stmt->fetch();
 }
 
-function addCampaign($name, $country, $traffic_source_id) {
+function addCampaign($name, $country, $traffic_source_id, $is_tester) {
     $db = db();
     $stmt = $db->prepare("
-        INSERT INTO campaigns (name, country, traffic_source_id)
-        VALUES (?, ?, ?)
+        INSERT INTO campaigns (name, country, traffic_source_id, tester)
+        VALUES (?, ?, ?, ?)
     ");
-    return $stmt->execute([$name, $country, $traffic_source_id]);
+    return $stmt->execute([$name, $country, $traffic_source_id, $is_tester]);
 }
 function addExternalCampaignId($campaign_id, $external_id) {
     $db = db();
@@ -41,16 +41,42 @@ function getExternalCampaignIds($campaign_id) {
     return $stmt->fetchAll(PDO::FETCH_COLUMN);
 }
 
-
-function updateCampaign($id, $name, $external_campaign_id, $country, $traffic_source_id) {
+function updateCampaign($id, $name, $country, $external_campaign_id, $traffic_source_id, $is_tester) {
     $db = db();
+
+    // 1. Update campaigns table
     $stmt = $db->prepare("
         UPDATE campaigns
-        SET name = ?, external_campaign_id = ?, country = ?, traffic_source_id = ?
+        SET name = ?, country = ?, traffic_source_id = ?, tester = ?
         WHERE id = ?
     ");
-    return $stmt->execute([$name, $external_campaign_id, $country, $traffic_source_id, $id]);
+    $stmt->execute([$name, $country, $traffic_source_id, $is_tester, $id]);
+
+    // 2. Clean and split external campaign IDs
+    $ids = preg_split("/\r\n|\n|\r/", trim($external_campaign_id));
+    $ids = array_filter(array_map('trim', $ids)); // remove empty lines
+
+    // 3. Delete old campaign external IDs
+    $delete = $db->prepare("DELETE FROM campaign_external_ids WHERE campaign_id = ?");
+    $delete->execute([$id]);
+
+    // 4. Insert new ones
+    if (!empty($ids)) {
+        $insert = $db->prepare("
+            INSERT INTO campaign_external_ids (campaign_id, external_campaign_id)
+            VALUES (?, ?)
+        ");
+
+        foreach ($ids as $extId) {
+            $insert->execute([$id, $extId]);
+        }
+    }
+
+    return true;
 }
+
+  
+
 
 function deleteCampaign($id) {
     $db = db();

@@ -31,9 +31,10 @@ function deleteTrafficSource($id) {
     return $stmt->execute([$id]);
 }
 
-function stopTrafficSourceCampaign($trafficSourceId, $externalCampaignId) {
+function stopTrafficSourceCampaign($trafficSourceId, array $externalCampaignIds) {
+    if (empty($externalCampaignIds)) return false;
 
-    // 1. Get API credentials & settings
+    // 1. Get traffic source info
     $stmt = db()->prepare("SELECT * FROM traffic_sources WHERE id = :id");
     $stmt->execute([':id' => $trafficSourceId]);
     $ts = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -41,20 +42,29 @@ function stopTrafficSourceCampaign($trafficSourceId, $externalCampaignId) {
     if (!$ts) return false;
 
     $apiKey = $ts['api_key'];
-    $apiUrl = $ts['api_pause_endpoint']; // example: https://api.propellerads.com/v5/campaigns/{id}/status
+    $sourceName = strtolower(trim($ts['name'] ?? ''));
 
-    // 2. Replace campaign ID inside URL
-    $apiUrl = str_replace("{campaign_id}", $externalCampaignId, $apiUrl);
+    // 2. Determine API endpoint and payload based on traffic source
+    switch ($sourceName) {
+        case 'propellerads':
+            $apiUrl = "https://ssp-api.propellerads.com/v5/adv/campaigns/stop";
+            $payload = [
+                "campaign_ids" => array_map('intval', $externalCampaignIds)
+            ];
+            break;
+        default:
+            return false; // unsupported traffic source
+    }
 
-    // 3. Make request
+    // 3. Make PUT request
     $ch = curl_init($apiUrl);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "PUT");
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
         "Authorization: Bearer $apiKey",
         "Content-Type: application/json"
     ]);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(["status" => "paused"]));
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
 
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -65,12 +75,15 @@ function stopTrafficSourceCampaign($trafficSourceId, $externalCampaignId) {
         INSERT INTO traffic_source_logs (traffic_source_id, campaign_id, response, http_code)
         VALUES (:tsid, :cid, :response, :http_code)
     ");
-    $stmt->execute([
-        ':tsid' => $trafficSourceId,
-        ':cid' => $externalCampaignId,
-        ':response' => $response,
-        ':http_code' => $httpCode
-    ]);
+    foreach ($externalCampaignIds as $cid) {
+        $stmt->execute([
+            ':tsid' => $trafficSourceId,
+            ':cid' => $cid,
+            ':response' => $response,
+            ':http_code' => $httpCode
+        ]);
+    }
 
     return $httpCode >= 200 && $httpCode < 300;
 }
+

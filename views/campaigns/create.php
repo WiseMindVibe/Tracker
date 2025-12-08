@@ -1,18 +1,20 @@
 <?php
 require_once __DIR__ . "/../../src/bootstrap.php";
 
+
 // Load data for dropdowns
 $traffic_sources = getTrafficSources();
-$countries = json_decode(file_get_contents(__DIR__ . '/../data/countries.json'), true); //Add countries & decode JSON
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = $_POST['name'];
     $external_ids_raw = trim($_POST['external_campaign_id']);
     $country = $_POST['country'];
     $traffic_source_id = $_POST['traffic_source_id'];
+    $is_tester = isset($_POST['is_tester']) ? 1 : 0;
+
 
     // Create the internal campaign
-    if (addCampaign($name, $country, $traffic_source_id)) {
+    if (addCampaign($name, $country, $traffic_source_id, $is_tester )) {
         
         $campaign_id = db()->lastInsertId();
 
@@ -53,6 +55,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php endforeach; ?>
     </select><br><br>
 
+        <!-- ✅ Tester checkbox added -->
+    <label>
+        <input type="checkbox" name="is_tester" value="0" checked>
+        Tester
+    </label>
+    <br><br>
 
     <button type="submit">Save</button>
 </form>

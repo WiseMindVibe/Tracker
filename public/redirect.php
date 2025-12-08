@@ -3,21 +3,31 @@ require_once __DIR__ . '/../src/bootstrap.php';
 require_once __DIR__ . '/../src/functions/log_redirect.php';
 
 // ==========================================
+// DEBUG FUNCTION
+// ==========================================
+function debugLog($message, $data = null) {
+    $logfile = __DIR__ . '/../logs/redirect_debug.log';
+    $entry = date('Y-m-d H:i:s') . " | $message";
+    if ($data !== null) $entry .= " | " . json_encode($data);
+    file_put_contents($logfile, $entry . PHP_EOL, FILE_APPEND);
+}
+
+// ==========================================
 // 1. Extract GET parameters
 // ==========================================
-
-$clickid    = isset($_GET['SUBID']) ? $_GET['SUBID'] : null;
+$clickid    = $_GET['SUBID'] ?? null;
 $campaignId = isset($_GET['cid']) ? intval($_GET['cid']) : null;
-$external_campaign_id = isset($_GET['campaign_id']) ? intval($_GET['campaign_id']) : null;
-$country    = isset($_GET['country']) ? $_GET['country'] : null;
+$country    = $_GET['country'] ?? null;
 $os         = $_GET['os'] ?? 'Unknown';
 $browser    = $_GET['browser'] ?? 'Unknown';
-$connection_type = isset($_GET['connection_type']) ? $_GET['connection_type'] : 'Unknown';
-$isp        = isset($_GET['isp']) ? $_GET['isp'] : 'Unknown';
-$carrier    = isset($_GET['carrier']) ? $_GET['carrier'] : 'Unknown';
-$zone_id = isset($_GET['zone_id']) ? intval($_GET['zone_id']): 'Unknown';
+$connection_type = $_GET['connection_type'] ?? 'Unknown';
+$isp        = $_GET['isp'] ?? 'Unknown';
+$carrier    = $_GET['carrier'] ?? 'Unknown';
+$zone_id    = isset($_GET['zoneid']) ? intval($_GET['zoneid']) : 'Unknown';
 $cost       = isset($_GET['cost']) ? floatval($_GET['cost']) : 'Unknown';
 $ip         = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+
+debugLog("GET parameters received", $_GET);
 
 // ==========================================
 // 2. Validate campaign exists
@@ -27,15 +37,70 @@ $stmt->execute([':id' => $campaignId]);
 $campaign = $stmt->fetch(PDO::FETCH_ASSOC);
 
 if (!$campaign) {
+    debugLog("Campaign not found", $campaignId);
     logRedirect($campaignId, "Campaign not found", null);
-    exit("Error: Campaign not found");
+    header("Location: https://google.com");
+    exit;
 }
 
 // ==========================================
-// 3+4. Fetch campaign offers + cap check + balanced selection
+// 3. Load countries JSON and map campaign country
 // ==========================================
+$path = __DIR__ . '/../data/countries.json';
+if (!file_exists($path)) {
+    debugLog("Countries JSON file missing", $path);
+    logRedirect($campaignId, "Countries JSON file not found", $path);
+    header("Location: https://google.com");
+    exit;
+}
 
-// Fetch campaign offers with cap and current_views
+if (!$countries) {
+    debugLog("Failed to decode countries JSON", $path);
+    logRedirect($campaignId, "Failed to decode countries JSON", $path);
+    header("Location: https://google.com");
+    exit;
+}
+
+// Map campaign country code to name
+$campaignCountryCode = strtoupper(trim($campaign['country'] ?? ''));
+$campaignCountryName = null;
+
+foreach ($countries as $c) {
+    if (strtoupper($c['code']) === $campaignCountryCode) {
+        $campaignCountryName = strtolower(trim($c['name']));
+        break;
+    }
+}
+
+if (!$campaignCountryName) {
+    debugLog("Campaign country code not found in countries.json", $campaign['country']);
+    logRedirect($campaignId, "Campaign country code not found", $campaign['country']);
+    header("Location: https://google.com");
+    exit;
+}
+
+debugLog("Mapped campaign country", ['code'=>$campaignCountryCode,'name'=>$campaignCountryName]);
+
+// ==========================================
+// 4. Compare visitor country
+// ==========================================
+$visitorCountry = strtolower(trim($country ?? ''));
+
+
+$allowedCountries = $countryAliases[$campaignCountryCode] ?? [$campaignCountryName];
+
+if (!in_array($visitorCountry, array_map('strtolower', $allowedCountries))) {
+    debugLog("Visitor country mismatch", ['visitor'=>$visitorCountry,'campaign'=>$campaignCountryName,'allowed'=>$allowedCountries]);
+    logRedirect($campaignId, "Visitor country mismatch", "Campaign: $campaignCountryName | Visitor: $visitorCountry");
+    header("Location: https://google.com");
+    exit;
+}
+
+debugLog("Visitor country matched", ['visitor'=>$visitorCountry]);
+
+// ==========================================
+// 5. Fetch campaign offers
+// ==========================================
 $stmt = db()->prepare("
     SELECT 
         co.offer_id,
@@ -54,53 +119,51 @@ $stmt->execute([':cid' => $campaignId]);
 $offers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 if (!$offers) {
+    debugLog("No offers found in campaign", $campaignId);
     logRedirect($campaignId, "No offers in campaign", null);
-    exit("Error: No offers in this campaign");
+    header("Location: https://google.com");
+    exit;
 }
 
 $availableOffers = [];
 $allCapped = true;
 
-// Check which offers are still valid (not fully capped)
 foreach ($offers as $offer) {
-
     $views = (int)($offer['current_views'] ?? 0);
-    $cap   = (int)$offer['cap'];
-
+    $cap = (int)$offer['cap'];
     if ($views < $cap) {
         $allCapped = false;
         $offer['current_views'] = $views;
-        $offer['fill_percent'] = $views / $cap;
+        $offer['fill_percent'] = $views / max($cap,1);
         $availableOffers[] = $offer;
     }
 }
 
+if ($allCapped) {
+    debugLog("All offers capped", $campaignId);
+    logRedirect($campaignId, "Campaign capped", "campaign capped");
 
-    // If all offers are capped
-    if ($allCapped) {
-        // 🔥 Placeholder: Stop campaign via traffic source API
-        // sendStopCampaignToTrafficSource($campaignId);
-
-        // Fetch traffic source associated with the campaign
+    // Fetch all traffic_source_id + external_campaign_id for this campaign
     $stmt = db()->prepare("
-        SELECT traffic_source_id, external_campaign_id
+        SELECT traffic_source_id, external_campaign_id 
         FROM campaigns 
-        WHERE id = :id
+        WHERE id = :cid
     ");
-    $stmt->execute([':id' => $campaignId]);
-    $cdata = $stmt->fetch(PDO::FETCH_ASSOC);
+    $stmt->execute([':cid' => $campaignId]);
+    $campaignData = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    if ($cdata && $cdata['traffic_source_id'] && $cdata['external_campaign_id']) {
+    foreach ($campaignData as $c) {
+        $tsId = $c['traffic_source_id'];
+        $extId = $c['external_campaign_id'];
 
-        stopTrafficSourceCampaign(
-            $cdata['traffic_source_id'],
-            $cdata['external_campaign_id']
-        );
-
-        logRedirect($campaignId, "Campaign capped → traffic source paused", null);
-
-    } else {
-        logRedirect($campaignId, "Campaign capped but no traffic source settings found", null);
+        if ($tsId && $extId) {
+            $paused = stopTrafficSourceCampaign($tsId, $extId);
+            debugLog("Traffic source campaign pause attempt", [
+                'traffic_source_id' => $tsId,
+                'external_campaign_id' => $extId,
+                'paused' => $paused
+            ]);
+        }
     }
 
     // Redirect backup
@@ -108,124 +171,92 @@ foreach ($offers as $offer) {
     exit;
 }
 
-// Sort available offers by lowest fill percentage
-usort($availableOffers, function($a, $b) {
-    return $a['fill_percent'] <=> $b['fill_percent'];
-});
 
-// Pick one randomly among the top 50% least filled offers
-$halfIndex = ceil(count($availableOffers) / 2);
-$topOffers = array_slice($availableOffers, 0, $halfIndex);
+
+// ==========================================
+// 6. Select offer
+// ==========================================
+usort($availableOffers, fn($a,$b)=> $a['fill_percent'] <=> $b['fill_percent']);
+$halfIndex = ceil(count($availableOffers)/2);
+$topOffers = array_slice($availableOffers,0,$halfIndex);
 $selectedOffer = $topOffers[array_rand($topOffers)];
 
-// Increment current_views for selected offer
+// Increment views
 $stmt = db()->prepare("
-    UPDATE campaign_offers 
-    SET current_views = COALESCE(current_views, 0) + 1
-    WHERE campaign_id = :cid AND offer_id = :oid
+    UPDATE campaign_offers
+    SET current_views = COALESCE(current_views,0)+1
+    WHERE campaign_id=:cid AND offer_id=:oid
 ");
-$stmt->execute([
-    ':cid' => $campaignId,
-    ':oid' => $selectedOffer['offer_id']
-]);
+$stmt->execute([':cid'=>$campaignId,':oid'=>$selectedOffer['offer_id']]);
+debugLog("Offer selected and view incremented", $selectedOffer);
 
 // ==========================================
-// 5. Fetch buffer domains
+// 7. Fetch buffer domain
 // ==========================================
-$stmt = db()->prepare("
-    SELECT id, buffer_url
-    FROM websites_buffers
-    WHERE website_id = :wid
-");
-$stmt->execute([':wid' => $selectedOffer['website_id']]);
+$stmt = db()->prepare("SELECT id, buffer_url FROM websites_buffers WHERE website_id=:wid");
+$stmt->execute([':wid'=>$selectedOffer['website_id']]);
 $buffers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 if (!$buffers) {
+    debugLog("No buffer domains", $selectedOffer['website_id']);
     logRedirect($selectedOffer['offer_id'], "No buffer domains", "website_id " . $selectedOffer['website_id']);
     exit("Error: No buffer domains available");
 }
 
-// ==========================================
-// 6. Select random buffer domain
-// ==========================================
-$rand = rand(0, count($buffers) - 1);
-$selectedBuffer = $buffers[$rand];
+$selectedBuffer = $buffers[rand(0,count($buffers)-1)];
+debugLog("Buffer selected", $selectedBuffer);
 
 // ==========================================
-// 7. Generate click_id
+// 8. Generate click_id and affiliate URL
 // ==========================================
 $clickId = uniqid('cid', true);
 
-// ==========================================
-// 8. Build affiliate link
-// ==========================================
-$stmt = db()->prepare("SELECT name FROM affiliate_programs WHERE id = :id");
-$stmt->execute([':id' => $selectedOffer['affiliate_program_id']]);
+$stmt = db()->prepare("SELECT name FROM affiliate_programs WHERE id=:id");
+$stmt->execute([':id'=>$selectedOffer['affiliate_program_id']]);
 $program = strtolower($stmt->fetchColumn() ?: 'default');
 
-function buildCustomAffiliateUrl($affiliatelink, $program, $clickId) {
-    switch (strtolower($program)) {
-        case 'oponia':
-            $token = "publisherId=";
-            break;
-        case 'yieldkit':
-            $token = "yk_tag=";
-            break;
-        default:
-            $token = "subid=";
-            break;
+function buildCustomAffiliateUrl($affiliatelink,$program,$clickId){
+    switch(strtolower($program)){
+        case 'oponia': return $affiliatelink . (strpos($affiliatelink,'?')===false?'?':'&')."publisherId=".urlencode($clickId);
+        case 'yieldkit': return $affiliatelink . (strpos($affiliatelink,'?')===false?'?':'&')."yk_tag=".urlencode($clickId);
+        default: return $affiliatelink . (strpos($affiliatelink,'?')===false?'?':'&')."subid=".urlencode($clickId);
     }
-    return $affiliatelink . (strpos($affiliatelink, '?') === false ? '?' : '&') . $token . urlencode($clickId);
 }
 
-$customAffiliateUrl = buildCustomAffiliateUrl(
-    $selectedOffer['affiliate_link'],
-    $program,
-    $clickId
-);
+$customAffiliateUrl = buildCustomAffiliateUrl($selectedOffer['affiliate_link'],$program,$clickId);
+debugLog("Affiliate URL generated",$customAffiliateUrl);
 
 // ==========================================
-// 9. Set cookies for root domain
+// 9. Set cookies
 // ==========================================
-//setcookie('buffer_url', $selectedBuffer['buffer_url'], time() + 10, "/", ".wisemindvibe.com", true, true);
-setcookie('affiliate_url', $customAffiliateUrl, time() + 10, "/", ".wisemindvibe.com", true, true);
-//setcookie('visit_flag1', '1', time() + 10, "/", ".wisemindvibe.com", true, true);
+setcookie('affiliate_url', $customAffiliateUrl, time()+10, "/", ".wisemindvibe.com", true, true);
 
 // ==========================================
 // 10. Log click
 // ==========================================
 $stmt = db()->prepare("
     INSERT INTO clicks 
-        (click_id, offer_id, campaign_id, country, OS, browser, zone_id, cost, payout, ip)
-    VALUES 
-        (:click_id, :offer_id, :campaign_id, :country, :os, :browser, :zone_id, :cost, 0, INET6_ATON(:ip))
+    (click_id, offer_id, campaign_id, country, OS, browser, zone_id, cost, payout, ip)
+    VALUES
+    (:click_id,:offer_id,:campaign_id,:country,:os,:browser,:zone_id,:cost,0,INET6_ATON(:ip))
 ");
 $stmt->execute([
-    ':click_id' => $clickId,
-    ':offer_id' => $selectedOffer['offer_id'],
-    ':campaign_id' => $campaignId,
-    ':country' => $country,
-    ':os' => $os,
-    ':browser' => $browser,
-    ':zone_id' => $zone_id,
-    ':cost' => $cost,
-    ':ip' => $ip
+    ':click_id'=>$clickId,
+    ':offer_id'=>$selectedOffer['offer_id'],
+    ':campaign_id'=>$campaignId,
+    ':country'=>$country,
+    ':os'=>$os,
+    ':browser'=>$browser,
+    ':zone_id'=>$zone_id,
+    ':cost'=>$cost,
+    ':ip'=>$ip
 ]);
 
+debugLog("Click logged",$clickId);
 
 // ==========================================
-// 11. Redirect to root domain
+// 11. Redirect
 // ==========================================
-$stmt = db()->prepare("SELECT domain FROM websites WHERE id = :wid LIMIT 1");
-$stmt->execute([':wid' => $selectedOffer['website_id']]);
-$websiteDomain = $stmt->fetchColumn();
-
-if (!$websiteDomain) exit("Website domain not found");
-
-// Redirect to root domain
-//header("Location: https://" . $selectedBuffer['buffer_url']);
-header("Location: " . $customAffiliateUrl);
+debugLog("Redirecting to affiliate URL",$customAffiliateUrl);
+header("Location: ".$customAffiliateUrl);
 exit;
-
-
-

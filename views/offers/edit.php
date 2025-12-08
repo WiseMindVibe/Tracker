@@ -8,7 +8,6 @@ if (!$offer) die("Offer not found.");
 
 $affiliates = getAffiliatePrograms();
 $websites = getWebsites();
-$countries = json_decode(file_get_contents(__DIR__ . '../../data/countries.json'), true);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = $_POST['name'];

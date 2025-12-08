@@ -77,9 +77,6 @@ body {
 <!-- REMOVE /track FROM HREFS LINKS -->
 <nav class="topbar">
     <div class="logo">MyTracker</div>
-    <?php
-    $DOMAIN_START = getenv('DOMAIN_START') ?: '';
-    ?>
     <ul class="nav-links">
         <li><a href="#">Dashboard</a></li>
         <li><a href="/<?= $DOMAIN_START ?>/views/reporting.php">Reporting</a></li>

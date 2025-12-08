@@ -80,7 +80,7 @@ function getGroupedClicks($start, $end, $groups = []) {
         }
 
         // Count approved statuses (open + confirmed + paid)
-        if (in_array($status, ["open", "confirmed", "paid"])) {
+        if (in_array($status, ["confirmed", "paid"])) {
             $ref["_stats"]["approved_statuses"]++;
         }
 
@@ -90,10 +90,15 @@ function getGroupedClicks($start, $end, $groups = []) {
         }
 
         // Actual conversions: only confirmed & paid
-        if (in_array($status, ["confirmed", "paid"])) {
+        if (in_array($status, ["open", "confirmed", "paid"])) {
             $ref["_stats"]["conversions"]++;
             $ref["_stats"]["revenue"] += $row["payout"];
         }
+
+        // Cost per click or event
+        $ref["_stats"]["cost"] += isset($row["cost"]) ? floatval($row["cost"]) : 0;
+
+
 
     }
     // After all rows → compute CR, ROI, reject rate
@@ -112,6 +117,7 @@ function computeStatsRecursive(&$arr) {
 
         $s = &$v["_stats"];
 
+        $s["profit"] = $s["revenue"] - $s["cost"];
         $s["cr"] = $s["clicks"] > 0 ? round(($s["conversions"] / $s["clicks"]) * 100, 2) : 0;
 
         $s["roi"] = $s["cost"] > 0 

@@ -4,7 +4,6 @@ require_once __DIR__ . "/../../src/bootstrap.php";
 // Load data for dropdowns
 $affiliates = getAffiliatePrograms();
 $websites = getWebsites();
-$countries = json_decode(file_get_contents(__DIR__ . '/../data/countries.json'), true); //Add countries & decode JSON
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = $_POST['name'];

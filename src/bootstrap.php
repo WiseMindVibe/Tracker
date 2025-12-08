@@ -28,6 +28,10 @@ try {
     die('Database connection failed: ' . $e->getMessage());
 }
 
+$countries = json_decode(file_get_contents(__DIR__ . '/../data/countries.json'), true); //Add countries & decode JSON
+
+
+$DOMAIN_START = getenv('base_domain') ?: 'tracker';
 $base_url = getenv('BASE_URL') ?: 'localhost/tracker';
 
 // Autoloader for src/

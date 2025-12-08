@@ -7,7 +7,6 @@ $campaign = getCampaign($campaign_id);
 if (!$campaign) die("Campaign not found.");
 
 $traffic_sources = getTrafficSources();
-$countries = json_decode(file_get_contents(__DIR__ . '../../data/countries.json'), true);
 $external_campaigns = getExternalCampaignIds($campaign_id);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -15,8 +14,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $external_campaign_id = $_POST['external_campaign_id'];
     $country = $_POST['country'];
     $traffic_source_id = $_POST['traffic_source_id'];
+    $is_tester = isset($_POST['is_tester']) ? 1 : 0;
 
-    if (updateCampaign($campaign_id, $name, $external_campaign_id, $country, $traffic_source_id)) {
+    if (updateCampaign($campaign_id, $name, $country, $external_campaign_id, $traffic_source_id, $is_tester)) {
         header("Location: list.php");
         exit;
     }
@@ -29,8 +29,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <label>Name:</label><br>
     <input type="text" name="name" value="<?= htmlspecialchars($campaign['name']) ?>" required><br><br>
     
-    <label>External Campaign ID:</label><br>
-    <input type="text" name="external_campaign_id" value="<?= htmlspecialchars(implode(", ", $external_campaigns)) ?>" required><br><br>
+<label>External Campaign ID:</label><br>
+
+<?php
+$external_ids_text = "";
+
+foreach ($external_campaigns as $ec) {
+    // if item is array → extract ID
+    if (is_array($ec) && isset($ec['external_campaign_id'])) {
+        $external_ids_text .= $ec['external_campaign_id'] . "\n";
+    }
+    // if item is already a string → use directly
+    else {
+        $external_ids_text .= $ec . "\n";
+    }
+}
+?>
+
+<textarea name="external_campaign_id" rows="3" required><?= htmlspecialchars(trim($external_ids_text)) ?></textarea>
+<br><br>
 
     <label>Country:</label><br>
     <select name="country" required>
@@ -50,6 +67,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php endforeach; ?>
     </select><br><br>
 
+       <label>
+        <input type="checkbox" name="is_tester" value="1" checked>
+        Tester
+    </label>
+    <br><br>
+
+    
     <button type="submit">Update</button>
 </form>
 

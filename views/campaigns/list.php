@@ -28,13 +28,16 @@ $campaigns = getCampaigns();
 
     <?php foreach ($campaigns as $c): 
         $external_campaigns = getExternalCampaignIds($c['id']);
+$external_ids = array_map(function($item) {
+    return $item['external_campaign_id'];
+}, $external_campaigns);
+
         ?>
     <tr>
         <td><?= $c['id'] ?></td>
         <td><?= htmlspecialchars($c['name']) ?></td>
-        <td>
-            <?= htmlspecialchars(implode(", ", $external_campaigns)) ?>
-        </td>
+<td><?= htmlspecialchars(implode(", ", $external_ids)) ?></td>
+
         <td>
 
             <?= $views = getOfferViewsInCampaign($c['id']) ?? 0 ?>

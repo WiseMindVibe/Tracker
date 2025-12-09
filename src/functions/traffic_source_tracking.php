@@ -7,7 +7,7 @@ function generateTrackingUrl(string $base_url, array $campaign): string
     switch ($campaign['traffic_source_name']) {
 
         case 'PropellerAds':
-            $tracking_url .= '&clickid=${SUBID}&campaignid={campaignid}&country={country}&os={os}&browser={browser}&connection.type={connection.type}&isp={isp}&carrier={carrier}&zoneid={zoneid}&cost={price}';
+            $tracking_url .= '&clickid=${SUBID}&campaignid={campaignid}&country={country}&os={os}&browser={browser}&connection.type={connection.type}&isp={isp}&carrier={carrier}&zoneid={zoneid}&cost={cost}';
             break;
 
         case 'HilltopAds':

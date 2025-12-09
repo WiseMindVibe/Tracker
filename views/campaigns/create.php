@@ -22,8 +22,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $external_ids = array_filter(array_map('trim', explode("\n", $external_ids_raw)));
 
         foreach ($external_ids as $id) {
-            addExternalCampaignId($campaign_id, $id);
-        }
+    addExternalCampaignId($campaign_id, $id, $traffic_source_id);
+}
+
 
         header("Location: list.php");
         exit;

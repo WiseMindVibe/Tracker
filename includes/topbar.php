@@ -79,12 +79,12 @@ body {
     <div class="logo">MyTracker</div>
     <ul class="nav-links">
         <li><a href="#">Dashboard</a></li>
-        <li><a href="/<?= $DOMAIN_START ?>/views/reporting.php">Reporting</a></li>
-        <li><a href="/<?= $DOMAIN_START ?>/views/offers/list.php">Offers</a></li>
-        <li><a href="/<?= $DOMAIN_START ?>/views/campaigns/list.php">Campaigns</a></li>
-        <li><a href="/<?= $DOMAIN_START ?>/views/affiliate_programs/list.php">Affiliate Programs</a></li>
-        <li><a href="/<?= $DOMAIN_START ?>/views/traffic_sources/list.php">Traffic Sources</a></li>
-        <li><a href="/<?= $DOMAIN_START ?>/views/websites/list.php">Websites</a></li>
+        <li><a href="<?= $DOMAIN_START ?>/views/reporting.php">Reporting</a></li>
+        <li><a href="<?= $DOMAIN_START ?>/views/offers/list.php">Offers</a></li>
+        <li><a href="<?= $DOMAIN_START ?>/views/campaigns/list.php">Campaigns</a></li>
+        <li><a href="<?= $DOMAIN_START ?>/views/affiliate_programs/list.php">Affiliate Programs</a></li>
+        <li><a href="<?= $DOMAIN_START ?>/views/traffic_sources/list.php">Traffic Sources</a></li>
+        <li><a href="<?= $DOMAIN_START ?>/views/websites/list.php">Websites</a></li>
     </ul>
 
     <div class="menu-btn" onclick="toggleMenu()">☰</div>

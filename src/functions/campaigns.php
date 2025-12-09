@@ -26,25 +26,34 @@ function addCampaign($name, $country, $traffic_source_id, $is_tester) {
     ");
     return $stmt->execute([$name, $country, $traffic_source_id, $is_tester]);
 }
-function addExternalCampaignId($campaign_id, $external_id) {
-    $db = db();
-    $stmt = $db->prepare("
-        INSERT INTO campaign_external_ids (campaign_id, external_campaign_id)
-        VALUES (?, ?)
-    ");
-    return $stmt->execute([$campaign_id, $external_id]);
-}
 function getExternalCampaignIds($campaign_id) {
     $db = db();
     $stmt = $db->prepare("SELECT external_campaign_id FROM campaign_external_ids WHERE campaign_id = ?");
     $stmt->execute([$campaign_id]);
-    return $stmt->fetchAll(PDO::FETCH_COLUMN);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
-function updateCampaign($id, $name, $country, $external_campaign_id, $traffic_source_id, $is_tester) {
+
+function addExternalCampaignId($campaign_id, $external_id, $traffic_source_id) {
+    $db = db();
+    $stmt = $db->prepare("
+        INSERT INTO campaign_external_ids (campaign_id, external_campaign_id, traffic_source_id)
+        VALUES (?, ?, ?)
+    ");
+    return $stmt->execute([$campaign_id, $external_id, $traffic_source_id]);
+}
+
+function updateCampaign(
+    $id,
+    $name,
+    $country,
+    $external_campaign_id_textarea,
+    $traffic_source_id,
+    $is_tester
+) {
     $db = db();
 
-    // 1. Update campaigns table
+    // Update campaigns table
     $stmt = $db->prepare("
         UPDATE campaigns
         SET name = ?, country = ?, traffic_source_id = ?, tester = ?
@@ -52,29 +61,29 @@ function updateCampaign($id, $name, $country, $external_campaign_id, $traffic_so
     ");
     $stmt->execute([$name, $country, $traffic_source_id, $is_tester, $id]);
 
-    // 2. Clean and split external campaign IDs
-    $ids = preg_split("/\r\n|\n|\r/", trim($external_campaign_id));
-    $ids = array_filter(array_map('trim', $ids)); // remove empty lines
+    // Clean textarea list
+    $ids = preg_split("/\r\n|\n|\r/", trim($external_campaign_id_textarea));
+    $ids = array_filter(array_map('trim', $ids));
 
-    // 3. Delete old campaign external IDs
+    // Remove old external IDs
     $delete = $db->prepare("DELETE FROM campaign_external_ids WHERE campaign_id = ?");
     $delete->execute([$id]);
 
-    // 4. Insert new ones
+    // Insert new external IDs WITH TRAFFIC SOURCE ID
     if (!empty($ids)) {
-        $insert = $db->prepare("
-            INSERT INTO campaign_external_ids (campaign_id, external_campaign_id)
-            VALUES (?, ?)
-        ");
+$insert = $db->prepare("
+    INSERT INTO campaign_external_ids (campaign_id, traffic_source_id, external_campaign_id)
+    VALUES (?, ?, ?)
+");
 
-        foreach ($ids as $extId) {
-            $insert->execute([$id, $extId]);
-        }
+foreach ($ids as $extId) {
+    $insert->execute([$id, $traffic_source_id, $extId]);
+}
+
     }
 
     return true;
 }
-
   
 
 

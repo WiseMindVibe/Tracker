@@ -32,21 +32,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <label>External Campaign ID:</label><br>
 
 <?php
-$external_ids_text = "";
-
+$external_campaigns = getExternalCampaignIds($campaign['id']);
+$ext_ids = [];
 foreach ($external_campaigns as $ec) {
-    // if item is array → extract ID
-    if (is_array($ec) && isset($ec['external_campaign_id'])) {
-        $external_ids_text .= $ec['external_campaign_id'] . "\n";
-    }
-    // if item is already a string → use directly
-    else {
-        $external_ids_text .= $ec . "\n";
-    }
+    $ext_ids[] = $ec['external_campaign_id'];
 }
+$external_ids_text = implode("\n", $ext_ids);
 ?>
+<textarea name="external_campaign_id" rows="3" required><?= htmlspecialchars($external_ids_text) ?></textarea>
 
-<textarea name="external_campaign_id" rows="3" required><?= htmlspecialchars(trim($external_ids_text)) ?></textarea>
 <br><br>
 
     <label>Country:</label><br>

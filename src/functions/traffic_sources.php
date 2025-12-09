@@ -39,12 +39,15 @@ function stopTrafficSourceCampaign($trafficSourceId, array $externalCampaignIds)
     $stmt->execute([':id' => $trafficSourceId]);
     $ts = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    if (!$ts) return false;
+    if (!$ts || empty($ts['api_key']) || empty($ts['name'])) {
+        error_log("Traffic source missing or invalid API key/name");
+        return false;
+    }
 
-    $apiKey = $ts['api_key'];
-    $sourceName = strtolower(trim($ts['name'] ?? ''));
+    $apiKey = trim($ts['api_key']);
+    $sourceName = strtolower(trim($ts['name']));
 
-    // 2. Determine API endpoint and payload based on traffic source
+    // 2. Determine API endpoint and payload
     switch ($sourceName) {
         case 'propellerads':
             $apiUrl = "https://ssp-api.propellerads.com/v5/adv/campaigns/stop";
@@ -53,10 +56,11 @@ function stopTrafficSourceCampaign($trafficSourceId, array $externalCampaignIds)
             ];
             break;
         default:
-            return false; // unsupported traffic source
+            error_log("Unsupported traffic source: $sourceName");
+            return false;
     }
 
-    // 3. Make PUT request
+    // 3. Initialize cURL
     $ch = curl_init($apiUrl);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "PUT");
@@ -65,18 +69,30 @@ function stopTrafficSourceCampaign($trafficSourceId, array $externalCampaignIds)
         "Content-Type: application/json"
     ]);
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);  // follow redirects
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);           // timeout
 
+    // 4. Execute cURL and capture debug info
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+    if (curl_errno($ch)) {
+        $error = curl_error($ch);
+        curl_close($ch);
+        error_log("cURL error: $error");
+        return false;
+    }
+
     curl_close($ch);
 
-    // 4. Log result
-    $stmt = db()->prepare("
-        INSERT INTO traffic_source_logs (traffic_source_id, campaign_id, response, http_code)
-        VALUES (:tsid, :cid, :response, :http_code)
+    // 5. Log each campaign stop attempt
+    $stmtLog = db()->prepare("
+        INSERT INTO traffic_source_logs 
+        (traffic_source_id, campaign_id, response, http_code, created_at) 
+        VALUES (:tsid, :cid, :response, :http_code, NOW())
     ");
     foreach ($externalCampaignIds as $cid) {
-        $stmt->execute([
+        $stmtLog->execute([
             ':tsid' => $trafficSourceId,
             ':cid' => $cid,
             ':response' => $response,
@@ -84,6 +100,14 @@ function stopTrafficSourceCampaign($trafficSourceId, array $externalCampaignIds)
         ]);
     }
 
+    // 6. Debug output (optional — remove in production)
+    echo "HTTP CODE: $httpCode\n";
+    echo "RESPONSE: $response\n";
+    echo "PAYLOAD SENT: " . json_encode($payload, JSON_PRETTY_PRINT) . "\n";
+
+    // 7. Return true only if API confirmed success (HTTP 2xx)
     return $httpCode >= 200 && $httpCode < 300;
 }
+
+
 

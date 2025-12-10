@@ -2,14 +2,15 @@
 require_once __DIR__ . '/../src/bootstrap.php';
 
 // 1. Extract required parameters (this depends on affiliate network)
-$clickId = isset($_GET['click_id']) ? $_GET['click_id'] : null;
-$payout  = isset($_GET['payout']) ? $_GET['payout'] : null;
+$clickId = isset($_GET['click_id']) ? $_GET['click_id'] : null; //SUB_ID
+$payout  = isset($_GET['payout']) ? $_GET['payout'] : null; //COMMISION
 $status  = strtolower(isset($_GET['status']) ? $_GET['status'] : null);
+$event_id = isset($_GET['event_id']) ? $_GET['event_id'] : null;
 
 // 2. Basic validation
 if(!$clickId || !$payout || !$status) {
     logPostback($clickId, "Missing parameters", "click_id: $clickId, payout: $payout, status: $status");
-    exit("Error: Missing parameters.<br>click_id: $clickId,<br> payout: $payout,<br>status: $status");
+    exit("Error: Missing parameters.<br>click_id: $clickId<br> payout: $payout<br>status: $status");
 }
 
 // 3. Prevent duplicate conversions
@@ -23,8 +24,7 @@ if (!$existing) {
     exit("Error: Click Not Found");
 }
 else if ($existing && in_array(strtolower($existing['status']), ['confirmed', 'paid', 'rejected'])) {
-    logPostback($clickId, "Duplicate conversion", "Click $clickId already has status: " . $existing['status']);
-    exit("Error: Duplicate conversion");
+    logPostback($clickId, "Duplicate conversion", "Click_id: $clickId already has status: " . $existing['status']);
 }
 
 // Check for allowed status values
@@ -43,13 +43,14 @@ if (!floatval($payout) || $payout < 0) {
 // 5. Update click row
 $stmt = db()->prepare("
     UPDATE clicks 
-    SET status = :status, payout = :payout, updated_at = NOW()
+    SET status = :status, payout = :payout, event_id = :event_id, updated_at = NOW()
     WHERE click_id = :click_id
 ");
 $stmt->execute([
     ':status'   => $status,
     ':payout'   => $payout,
     ':click_id' => $clickId,
+    ':event_id' => $event_id
 ]);
 
 // 6. Respond to affiliate server

@@ -285,7 +285,6 @@ try {
     // continue anyway
 }
 
-debugLog("Offer selected and view incremented", $selectedOffer);
 
 // ==========================================
 // 7. Fetch buffer domain
@@ -295,19 +294,16 @@ try {
     $stmt->execute([':wid'=>$selectedOffer['website_id']]);
     $buffers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Throwable $e) {
-    debugLog("DB error fetching buffers", $e->getMessage());
     logRedirect($campaignId, "DB error fetching buffers", $e->getMessage());
     safeRedirect('https://google.com');
 }
 
 if (!$buffers) {
-    debugLog("No buffer domains", $selectedOffer['website_id']);
     logRedirect($selectedOffer['offer_id'], "No buffer domains", "website_id " . $selectedOffer['website_id']);
     safeRedirect('https://google.com');
 }
 
 $selectedBuffer = $buffers[array_rand($buffers)];
-debugLog("Buffer selected", $selectedBuffer);
 
 // ==========================================
 // 8. Generate click_id and affiliate URL
@@ -331,7 +327,6 @@ function buildCustomAffiliateUrl($affiliatelink,$program,$clickId){
 }
 
 $customAffiliateUrl = buildCustomAffiliateUrl($selectedOffer['affiliate_link'],$program,$clickId);
-debugLog("Affiliate URL generated",$customAffiliateUrl);
 
 // ==========================================
 // 9. Set cookies (short-lived for tracking)
@@ -364,11 +359,8 @@ try {
     // continue - do not block redirect
 }
 
-debugLog("Click logged",$clickId);
 
 // ==========================================
 // 11. Final redirect to affiliate
 // ==========================================
-debugLog("Redirecting to affiliate URL",$customAffiliateUrl);
-logRedirect($campaignId, "Successful redirect to affiliate", "Successful redirect to affiliate");
 safeRedirect($customAffiliateUrl);

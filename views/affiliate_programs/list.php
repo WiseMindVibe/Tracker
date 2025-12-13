@@ -26,11 +26,11 @@ $programs = getAffiliatePrograms();
         <td><?= htmlspecialchars($p['name']) ?></td>
         <td>
             <input type="password" value="<?= htmlspecialchars($p['api_key']) ?>" readonly>
-            <button onclick="this.previousElementSibling.type='text'">Show</button>
+            <button onclick="toggleApiKey(this)">Show</button>
         </td>
         <td>
             <input type="password" value="<?= htmlspecialchars($p['api_secret']) ?>" readonly>
-            <button onclick="this.previousElementSibling.type='text'">Show</button>
+            <button onclick="toggleApiKey(this)">Show</button>
         </td>
         <td>
             <a href="edit.php?id=<?= $p['id'] ?>">Edit</a> |
@@ -41,6 +41,20 @@ $programs = getAffiliatePrograms();
     </tr>
     <?php endforeach; ?>
 </table>
+
+<script>
+function toggleApiKey(btn) {
+    const input = btn.previousElementSibling;
+
+    if (input.type === "password") {
+        input.type = "text";
+        btn.textContent = "Hide";
+    } else {
+        input.type = "password";
+        btn.textContent = "Show";
+    }
+}
+</script>
 
 <br>
 <a href="../../views">← Back to Root</a>

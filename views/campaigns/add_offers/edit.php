@@ -35,8 +35,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <h2>Edit Campaign Offer</h2>
 <form method="POST">
-    <label>Offer ID:</label><br>
-    <input type="number" name="offer_id" value="<?= $offer['offer_id'] ?>" disabled><br><br>
+    <label>Offer Name:</label><br>
+    <input type="text" name="name" value="<?= $offer['name'] ?>" disabled><br><br>
 
     <label>Views: ( DO NOT EDIT )</label><br>
     <input type="number" name="current_views" value="<?= $offer['current_views'] ?>"><br><br>

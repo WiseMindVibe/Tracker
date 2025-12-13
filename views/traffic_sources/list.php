@@ -25,7 +25,7 @@ $traffic_sources = getTrafficSources();
         <td><?= htmlspecialchars($t['name']) ?></td>
         <td>
             <input type="password" value="<?= htmlspecialchars($t['api_key']) ?>" readonly>
-            <button onclick="this.previousElementSibling.type='text'">Show</button>
+            <button onclick="toggleApiKey(this)">Show</button>
         </td>
         <td>
             <a href="edit.php?id=<?= $t['id'] ?>">Edit</a> |
@@ -39,3 +39,17 @@ $traffic_sources = getTrafficSources();
 
 <br>
 <a href="../../views">← Back to Root</a>
+
+<script>
+function toggleApiKey(btn) {
+    const input = btn.previousElementSibling;
+
+    if (input.type === "password") {
+        input.type = "text";
+        btn.textContent = "Hide";
+    } else {
+        input.type = "password";
+        btn.textContent = "Show";
+    }
+}
+</script>

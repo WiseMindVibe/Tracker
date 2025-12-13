@@ -113,8 +113,9 @@ function getCampaignOffers($campaign_id) {
     $stmt = $db->prepare("
         SELECT *
         FROM campaign_offers
+        JOIN offers ON offers.id = campaign_offers.offer_id
         WHERE campaign_id = :campaign_id
-        ORDER BY id DESC
+        ORDER BY campaign_offers.id DESC
     ");
     
     $stmt->execute([':campaign_id' => $campaign_id]);

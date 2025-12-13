@@ -32,7 +32,7 @@ $countries = json_decode(file_get_contents(__DIR__ . '/../data/countries.json'),
 
 
 $DOMAIN_START = getenv('DOMAIN_START') ?: '/track';
-$base_url = getenv('BASE_URL') ?: 'localhost/track';
+$base_url = getenv('BASE_URL') ?: '/localhost/track';
 
 // Autoloader for src/
 spl_autoload_register(function ($class) {

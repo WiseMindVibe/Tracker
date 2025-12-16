@@ -1,0 +1,26 @@
+1. Add a file named .env to your folder
+2. Copy-Paste -> & fill the information
+#---------------------------------------------
+
+# Database connection
+#DO NOT CHANGE
+DB_HOST=localhost
+
+#Database name
+DB_NAME=
+
+#Database username
+DB_USER=
+
+#Database password
+DB_PASS=             
+
+# Base URL for redirects - both should be the same
+$DOMAIN_START=
+BASE_URL=
+
+# Secret token for postback validation - Empty
+SECRET_TOKEN=
+
+#---------------------------------------------
+3. 

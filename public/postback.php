@@ -1,57 +1,103 @@
 <?php
 require_once __DIR__ . '/../src/bootstrap.php';
 
-// 1. Extract required parameters (this depends on affiliate network)
-$clickId = isset($_GET['click_id']) ? $_GET['click_id'] : null; //SUB_ID
-$payout  = isset($_GET['payout']) ? $_GET['payout'] : null; //COMMISION
-$status  = strtolower(isset($_GET['status']) ? $_GET['status'] : null);
-$event_id = isset($_GET['event_id']) ? $_GET['event_id'] : null;
+$clickId  = $_GET['click_id'] ?? null; // SUB_ID
+$payout   = $_GET['payout'] ?? null;
+$status   = strtolower($_GET['status'] ?? null);
+$event_id = $_GET['event_id'] ?? null;
 
-// 2. Basic validation
-if(!$clickId || !$payout || !$status) {
-    logPostback($clickId, "Missing parameters", "click_id: $clickId, payout: $payout, status: $status");
-    exit("Error: Missing parameters.<br>click_id: $clickId<br> payout: $payout<br>status: $status");
+if (!$clickId || !$payout || !$status) {
+    logPostback($clickId, "Missing parameters");
+    exit("ERROR");
 }
 
-// 3. Prevent duplicate conversions
-$stmt = db()->prepare("SELECT status FROM clicks WHERE click_id = :click_id LIMIT 1");
-$stmt->execute([':click_id' => $clickId]);
-$existing = $stmt->fetch(PDO::FETCH_ASSOC);
-
-// 4. Check if click exists
-if (!$existing) {
-    logPostback($clickId, "Click not found", "Click $clickId not found");
-    exit("Error: Click Not Found");
-}
-else if ($existing && in_array(strtolower($existing['status']), ['confirmed', 'paid', 'rejected'])) {
-    logPostback($clickId, "Duplicate conversion", "Click_id: $clickId already has status: " . $existing['status']);
-}
-
-// Check for allowed status values
 $allowedStatuses = ["open", "confirmed", "paid", "rejected"];
 if (!in_array($status, $allowedStatuses)) {
-    logPostback($clickId, "Invalid status", "Received status: $status");
-    exit("Error: Invalid status");
-}
-// Validate payout
-if (!floatval($payout) || $payout < 0) {
-    logPostback($clickId, "Invalid payout", "Received payout: $payout");
-    exit("Error: Invalid payout");
+    logPostback($clickId, "Invalid status", $status);
+    exit("ERROR");
 }
 
+if (!is_numeric($payout) || $payout < 0) {
+    logPostback($clickId, "Invalid payout", $payout);
+    exit("ERROR");
+}
 
-// 5. Update click row
-$stmt = db()->prepare("
-    UPDATE clicks 
-    SET status = :status, payout = :payout, event_id = :event_id, updated_at = NOW()
+$db = db();
+$db->beginTransaction();
+
+/**
+ * 1. Fetch click row (LOCKED)
+ */
+$stmt = $db->prepare("
+    SELECT id, status
+    FROM clicks
     WHERE click_id = :click_id
+    FOR UPDATE
+");
+$stmt->execute([':click_id' => $clickId]);
+$click = $stmt->fetch(PDO::FETCH_ASSOC);
+
+if (!$click) {
+    $db->rollBack();
+    logPostback($clickId, "Click not found");
+    exit("ERROR");
+}
+
+/**
+ * 2. Prevent duplicate conversion
+ */
+if (in_array($click['status'], ['confirmed', 'paid', 'rejected'])) {
+    $db->rollBack();
+    logPostback($clickId, "Duplicate conversion", $click['status']);
+    exit("OK");
+}
+
+/**
+ * 3. Update click
+ */
+$stmt = $db->prepare("
+    UPDATE clicks
+    SET status = :status,
+        payout = :payout,
+        updated_at = NOW()
+    WHERE id = :id
 ");
 $stmt->execute([
     ':status'   => $status,
     ':payout'   => $payout,
-    ':click_id' => $clickId,
-    ':event_id' => $event_id
+    ':id'       => $click['id']
 ]);
 
-// 6. Respond to affiliate server
+/**
+ * 4. Insert notification
+ */
+$stmt = $db->prepare("
+    INSERT INTO notifications (
+        click_id,
+        offer_id,
+        affiliate_id,
+        status,
+        payout,
+        click_created_at,
+        click_updated_at
+    )
+    SELECT
+        c.id,
+        c.offer_id,
+        o.affiliate_program_id,
+        c.status,
+        c.payout,
+        c.created_at,
+        c.updated_at
+
+    FROM clicks c
+    JOIN offers o ON o.id = c.offer_id
+    WHERE c.id = :click_internal_id
+");
+$stmt->execute([
+    ':click_internal_id' => $click['id']
+]);
+
+$db->commit();
+
 echo "OK";

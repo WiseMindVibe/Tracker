@@ -31,8 +31,8 @@ try {
 $countries = json_decode(file_get_contents(__DIR__ . '/../data/countries.json'), true); //Add countries & decode JSON
 
 
-$DOMAIN_START = getenv('DOMAIN_START') ?: '/tracker';
-$base_url = getenv('BASE_URL') ?: '/localhost/tracker';
+$DOMAIN_START = getenv('DOMAIN_START') ?: '/' . 'tracker_beta';
+$base_url = getenv('BASE_URL') ?: '';
 
 // Autoloader for src/
 spl_autoload_register(function ($class) {

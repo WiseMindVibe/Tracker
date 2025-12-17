@@ -139,4 +139,3 @@ $db->commit();
 sendTelegramMessage($message);
 
 echo "OK";
-

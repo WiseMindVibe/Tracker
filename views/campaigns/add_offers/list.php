@@ -18,7 +18,7 @@ $campaignOffers = getCampaignOffers($campaign_id);
 <table border="1" cellpadding="6">
     <tr>
         <th>ID</th>
-        <th>Offer Name</th>
+        <th>Offer ID</th>
         <th>Current Views</th>
         <th>Max Views (Cap)</th>
         <th>Actions</th>
@@ -29,7 +29,7 @@ $campaignOffers = getCampaignOffers($campaign_id);
 <?php foreach ($campaignOffers as $co): ?>
 <tr>
     <td><?= $co['id'] ?></td>
-    <td><?= htmlspecialchars($co['name']) ?></td>
+    <td><?= htmlspecialchars($co['offer_id']) ?></td>
     <td><?= htmlspecialchars($co['current_views'] ?? 0) ?></td>
     <td><?= htmlspecialchars($co['cap']) ?></td>
     <td>

@@ -25,7 +25,8 @@ $offers = getOffers()
 
 <datalist id="offers">
     <?php foreach($offers as $o): ?>
-        <option value="<?= htmlspecialchars($o['name']) ?>">
+        <option value="<?= htmlspecialchars($o['id']) ?>">
+            <?= htmlspecialchars($o['name']) ?>
         </option>
     <?php endforeach; ?>
 </datalist><br><br>

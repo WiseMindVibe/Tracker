@@ -1,10 +1,9 @@
 <?php
-
 //Set this at 04:30 each day
-require_once __DIR__ . '/../bootstrap.php';
+require_once __DIR__ . '/bootstrap.php';
 
 // 1. Get all tester campaigns
-$stmt = db()->prepare("SELECT id, name FROM campaigns WHERE tester = 1");
+$stmt = db()->prepare("SELECT id, name FROM campaigns WHERE is_tester = 1");
 $stmt->execute();
 $testerCampaigns = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -26,7 +25,7 @@ foreach ($testerCampaigns as $campaign) {
         $updatedAt = new DateTimeImmutable($offer['updated_at'], new DateTimeZone('UTC'));
         $daysPassed = ceil(($today->getTimestamp() - $updatedAt->getTimestamp()) / 86400); // 86400 sec = 1 day
 
-        if ($daysPassed >= 2) {
+        if ($daysPassed >= 3) {
 
             // 4. Compute ROI
             $startDate = $updatedAt->format('Y-m-d');

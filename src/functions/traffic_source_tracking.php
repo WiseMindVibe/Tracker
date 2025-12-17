@@ -1,8 +1,7 @@
-<?php
+ <?php
 
 function generateTrackingUrl(string $base_url, array $campaign): string
-{
-    $tracking_url =     $base_url . "/public/redirect.php?cid=" . $campaign['id'];
+{ $tracking_url =  "https://" .  $base_url . "/public/redirect.php?cid=" . $campaign['id'];
 
     switch ($campaign['traffic_source_name']) {
 

@@ -2,6 +2,13 @@
 require_once "../src/bootstrap.php";
 include "../includes/topbar.php";
 
+
+
+/**
+ * ============================================================
+ * 2. FETCH LAST 100 NOTIFICATIONS
+ * ============================================================
+ */
 $stmt = db()->prepare("
     SELECT
         n.*,
@@ -15,10 +22,29 @@ $stmt = db()->prepare("
 ");
 $stmt->execute();
 $notifications = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+/**
+ * ============================================================
+ * 1. MARK ALL UNREAD NOTIFICATIONS AS READ
+ *    (Happens ONCE when user opens this page)
+ * ============================================================
+ */
+db()->prepare("
+    UPDATE notifications
+    SET is_read = 1,
+        read_at = NOW()
+    WHERE is_read = 0
+")->execute();
+
 ?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Notifications</title>
 
 <style>
-/* ===== Notifications UI ===== */
+/* ================= Notifications UI ================= */
 
 .notifications-wrapper {
     max-width: 1400px;
@@ -83,11 +109,18 @@ $notifications = $stmt->fetchAll(PDO::FETCH_ASSOC);
     vertical-align: middle;
 }
 
+/* ===== UNREAD ===== */
 .notifications-table tr.unread {
-    background: #f0f7ff;
+    background: #57b0c7ff;
     font-weight: 600;
 }
 
+.unread-dot {
+    color: #2563eb;
+    font-size: 10px;
+}
+
+/* ===== STATUS BADGES ===== */
 .status-badge {
     padding: 5px 10px;
     border-radius: 999px;
@@ -112,12 +145,10 @@ $notifications = $stmt->fetchAll(PDO::FETCH_ASSOC);
     font-size: 13px;
     color: #374151;
 }
-
-.unread-dot {
-    color: #2563eb;
-    font-size: 10px;
-}
 </style>
+</head>
+
+<body>
 
 <div class="notifications-wrapper">
     <div class="notifications-card">
@@ -140,8 +171,10 @@ $notifications = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 </tr>
             </thead>
             <tbody>
+
             <?php foreach ($notifications as $n): ?>
                 <tr class="<?= $n['is_read'] ? '' : 'unread' ?>">
+
                     <td>
                         <?php if (!$n['is_read']): ?>
                             <span class="unread-dot">●</span>
@@ -153,7 +186,7 @@ $notifications = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     <td><?= htmlspecialchars($n['affiliate_name']) ?></td>
 
                     <td>
-                        <span class="status-badge status-<?= $n['status'] ?>">
+                        <span class="status-badge status-<?= htmlspecialchars($n['status']) ?>">
                             <?= strtoupper($n['status']) ?>
                         </span>
                     </td>
@@ -162,13 +195,18 @@ $notifications = $stmt->fetchAll(PDO::FETCH_ASSOC);
                         $<?= number_format($n['payout'], 2) ?>
                     </td>
 
-                    <td class="time"><?= $n['click_created_at'] ?></td>
+                    <td class="time"><?= htmlspecialchars($n['click_created_at']) ?></td>
 
-                    <td class="time"><?= $n['click_updated_at'] ?></td>
+                    <td class="time"><?= htmlspecialchars($n['click_updated_at']) ?></td>
+
                 </tr>
             <?php endforeach; ?>
+
             </tbody>
         </table>
 
     </div>
 </div>
+
+</body>
+</html>

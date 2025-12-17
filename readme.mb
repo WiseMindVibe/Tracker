@@ -19,8 +19,22 @@ DB_PASS=
 $DOMAIN_START=
 BASE_URL=
 
-# Secret token for postback validation - Empty
-SECRET_TOKEN=
-
+# Bot for messages
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_CHAT_ID=
 #---------------------------------------------
-3. 
+3. Create a telegram bot by searching "BotFather" 
+3.1 Type: 
+    /start
+    /newbot
+    {name}
+    {username}
+    Bot has been created - Open the chat with him
+    Copy Token & paste at "TELEGRAM_BOT_TOKEN"
+    in google Type
+    https://api.telegram.org/bot<BOT_TOKEN>/getUpdates - Replace <BOT_TOKEN> WITH BOT_TOKEN
+    Should see OK
+    Send a message to BOT
+    Rfresh the URL for the bot token - Should see "ID" after "chat"
+    Copy & paste in TELEGRAM_CHAT_ID
+4. Place in Crons jobs everything under src/crons

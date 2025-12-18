@@ -111,15 +111,19 @@ function addCampaignOffer($campaign_id, $offer_id, $cap = 0) {
 function getCampaignOffers($campaign_id) {
     $db = db();
     $stmt = $db->prepare("
-        SELECT *
-        FROM campaign_offers
-        WHERE campaign_id = :campaign_id
-        ORDER BY id DESC
+        SELECT 
+            co.*,
+            o.name AS offer_name
+        FROM campaign_offers co
+        JOIN offers o ON o.id = co.offer_id
+        WHERE co.campaign_id = :campaign_id
+        ORDER BY co.id DESC
     ");
     
     $stmt->execute([':campaign_id' => $campaign_id]);
-    return $stmt->fetchAll();
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
+
 
 
 function updateCampaignOffer($campaign_offer_id, $cap, $current_views) {

@@ -3,8 +3,6 @@
 require_once __DIR__ . '/../src/bootstrap.php';
 require_once __DIR__ . '/../src/functions/log_redirect.php';
 
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
 
 // ==========================================
 // DEBUG FUNCTION (ensures logs folder exists)
@@ -44,12 +42,11 @@ $zone_id    = isset($_GET['zoneid']) ? intval($_GET['zoneid']) : 'Unknown';
 $cost       = isset($_GET['cost']) ? floatval($_GET['cost']) : 0.1;
 $ip         = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
 
-debugLog("GET parameters received", $_GET);
 
 // Basic validation
 if (!$campaignId) {
     debugLog("Missing or invalid campaign id", $campaignId);
-    logRedirect($campaignId, "Missing campaign id", null);
+    logRedirect($campaignId, "Missing campaign id", reason: null);
     safeRedirect('https://google.com');
 }
 
@@ -103,8 +100,6 @@ if ($campaignCountryCode !== '' && !in_array($campaignCountryCode, $countryCodes
     safeRedirect('https://google.com');
 }
 
-debugLog("Mapped campaign country code", $campaignCountryCode);
-
 // ==========================================
 // 4. Compare visitor country code
 // ==========================================
@@ -118,8 +113,6 @@ if ($campaignCountryCode !== '' && !in_array($visitorCountryCode, $allowedCountr
     logRedirect($campaignId, "Visitor country mismatch", "Campaign: $campaignCountryCode | Visitor: $visitorCountryCode");
     safeRedirect('https://google.com');
 }
-
-debugLog("Visitor country code matched", ['visitor'=>$visitorCountryCode]);
 
 // ==========================================
 // 5. Fetch campaign offers
@@ -169,7 +162,7 @@ foreach ($offers as $offer) {
 
 if ($allCapped) {
     debugLog("All offers capped", $campaignId);
-    logRedirect($campaignId, "Campaign capped", "campaign capped");
+    //logRedirect($campaignId, "Campaign capped", "campaign capped");
 
     // ==========================================
     // Fetch traffic_source_id + external_campaign_id(s)
@@ -320,7 +313,7 @@ try {
 
 function buildCustomAffiliateUrl($affiliatelink,$program,$clickId){
     switch(strtolower($program)){
-        case 'oponia': return $affiliatelink . (strpos($affiliatelink,'?')===false?'?':'&')."publisherId=".urlencode($clickId);
+        case 'oponia': return $affiliatelink . (strpos($affiliatelink,'?')===false?'?':'&')."placementId=".urlencode($clickId);
         case 'yieldkit': return $affiliatelink . (strpos($affiliatelink,'?')===false?'?':'&')."yk_tag=".urlencode($clickId);
         default: return $affiliatelink . (strpos($affiliatelink,'?')===false?'?':'&')."subid=".urlencode($clickId);
     }

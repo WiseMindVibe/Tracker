@@ -15,8 +15,9 @@ DB_USER=
 #Database password
 DB_PASS=             
 
-# Base URL for redirects - both should be the same
-$DOMAIN_START=
+# Base URL for redirects
+#Leave empty $DOMAIN_START & Leave at bootstrap at /src $DOMAIN_START at the end as " '' "
+DOMAIN_START=
 BASE_URL=
 
 # Bot for messages

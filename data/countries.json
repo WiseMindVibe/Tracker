@@ -1,4 +1,6 @@
 [
+  { "name": "Global", "code": "GLOBAL", "aliases": [] },
+  
   { "name": "Afghanistan", "code": "AF", "aliases": ["AFG"] },
   { "name": "Albania", "code": "AL", "aliases": ["ALB"] },
   { "name": "Algeria", "code": "DZ", "aliases": ["ALG", "DZ"] },

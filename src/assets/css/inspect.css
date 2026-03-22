@@ -1,0 +1,247 @@
+/* Inspect offer page — extends dashboard.css tokens */
+
+.inspect-page .inspect-select-section {
+    margin-bottom: 1.5rem;
+}
+
+.inspect-offer-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.75rem 1rem;
+    max-width: 720px;
+}
+
+.inspect-offer-form__label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--dash-muted);
+    width: 100%;
+    margin-bottom: -0.35rem;
+}
+
+.inspect-offer-form__select {
+    flex: 1 1 240px;
+    min-width: 200px;
+    padding: 0.55rem 0.75rem;
+    border-radius: var(--dash-radius-sm);
+    border: 1px solid var(--dash-border);
+    background: var(--dash-surface);
+    color: var(--dash-text);
+    font-size: 0.9rem;
+}
+
+.inspect-offer-form__btn {
+    padding: 0.55rem 1.1rem;
+    border-radius: var(--dash-radius-sm);
+    border: 1px solid var(--dash-accent);
+    background: var(--dash-accent-dim);
+    color: var(--dash-accent);
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 0.875rem;
+}
+
+.inspect-offer-form__btn:hover {
+    background: rgba(56, 189, 248, 0.22);
+}
+
+.inspect-offer-card .inspect-offer-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 0.5rem;
+}
+
+.inspect-link {
+    color: var(--dash-accent);
+    text-decoration: none;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.inspect-link:hover {
+    text-decoration: underline;
+}
+
+.inspect-kpi--sm {
+    font-size: 1rem !important;
+    line-height: 1.35;
+}
+
+.inspect-period-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.inspect-period-card {
+    padding: 1rem 1.1rem;
+    background: var(--dash-surface);
+    border: 1px solid var(--dash-border);
+    border-radius: var(--dash-radius);
+    box-shadow: var(--dash-shadow);
+}
+
+.inspect-period-card__title {
+    margin: 0 0 0.85rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--dash-muted);
+}
+
+.inspect-period-card .kpi-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+}
+
+.inspect-geo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.inspect-geo-col {
+    padding: 1rem 1.1rem;
+    background: var(--dash-surface);
+    border: 1px solid var(--dash-border);
+    border-radius: var(--dash-radius);
+}
+
+.inspect-geo-col__title {
+    margin: 0 0 0.75rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--dash-accent);
+}
+
+.inspect-geo-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.inspect-geo-list li {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+}
+
+.inspect-geo-list__rank {
+    font-weight: 700;
+    color: var(--dash-muted);
+    width: 1.25rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.inspect-geo-list__name {
+    flex: 1;
+    min-width: 0;
+}
+
+.inspect-geo-list__n {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--dash-text);
+}
+
+.inspect-badge {
+    display: inline-block;
+    padding: 0.15rem 0.45rem;
+    border-radius: 999px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-right: 0.25rem;
+    margin-bottom: 0.15rem;
+    vertical-align: middle;
+}
+
+.inspect-badge--ok {
+    background: rgba(52, 211, 153, 0.15);
+    color: var(--dash-positive);
+    border: 1px solid rgba(52, 211, 153, 0.35);
+}
+
+.inspect-badge--off {
+    background: rgba(156, 163, 175, 0.12);
+    color: var(--dash-muted);
+    border: 1px solid var(--dash-border);
+}
+
+.inspect-badge--warn {
+    background: rgba(251, 191, 36, 0.12);
+    color: var(--dash-warn);
+    border: 1px solid rgba(251, 191, 36, 0.35);
+}
+
+.inspect-badge--na {
+    background: rgba(248, 113, 113, 0.1);
+    color: var(--dash-negative);
+    border: 1px solid rgba(248, 113, 113, 0.25);
+}
+
+.inspect-pill {
+    display: inline-block;
+    margin-left: 0.35rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    vertical-align: middle;
+}
+
+.inspect-pill--tester {
+    background: rgba(129, 140, 248, 0.2);
+    color: #a5b4fc;
+}
+
+.inspect-table-link {
+    color: var(--dash-accent);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.inspect-table-link:hover {
+    text-decoration: underline;
+}
+
+.inspect-ext-cell {
+    max-width: 200px;
+    word-break: break-word;
+    font-size: 0.75rem;
+    color: var(--dash-muted);
+}
+
+.inspect-dt-cell {
+    font-size: 0.75rem;
+    color: var(--dash-muted);
+    white-space: nowrap;
+}
+
+.inspect-warn-section {
+    border: 1px dashed var(--dash-warn);
+    border-radius: var(--dash-radius);
+    background: rgba(251, 191, 36, 0.06);
+}
+
+.inspect-orphan-list {
+    margin: 0.5rem 0 0;
+    padding-left: 1.25rem;
+    color: var(--dash-muted);
+    font-size: 0.875rem;
+}
+
+.inspect-orphan-list li {
+    margin-bottom: 0.35rem;
+}

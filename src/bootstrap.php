@@ -28,17 +28,17 @@ try {
     die('Database connection failed: ' . $e->getMessage());
 }
 
-$countries = json_decode(file_get_contents(__DIR__ . '/../data/countries.json'), true); //Add countries & decode JSON
+//$countries = json_decode(file_get_contents(__DIR__ . '/../assets/includes/countries.json'), true); //Add countries & decode JSON
 
 
-$DOMAIN_START = getenv('DOMAIN_START') ?: '/' . 'tracker_beta';
-$base_url = getenv('BASE_URL') ?: '';
+$DOMAIN_START = getenv('DOMAIN_START') ?: '/' . 'tracker';
+$base_url = getenv('BASE_URL') ?: 'localhost/' . 'tracker';
 
 // Autoloader for src/
 spl_autoload_register(function ($class) {
     $path = __DIR__ . '/' . str_replace('\\', '/', $class) . '.php';
     if (file_exists($path)) {
-        require $path;
+        require_once $path;
     }
 });
 
@@ -48,7 +48,8 @@ foreach (glob(__DIR__ . '/functions/*.php') as $filename) {
 }
 
 // Simple global function to access DB anywhere
-function db() {
+function db()
+{
     global $db;
     return $db;
 }

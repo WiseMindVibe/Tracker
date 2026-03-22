@@ -1,0 +1,741 @@
+/**
+ * Shared UI for CRUD hub: offers, affiliates, websites, traffics, campaigns.
+ * Visual language aligned with dashboard.css / notifications.css.
+ */
+
+:root {
+    --em-bg: #0b1220;
+    --em-surface: #111827;
+    --em-surface-2: #1f2937;
+    --em-border: #374151;
+    --em-text: #f3f4f6;
+    --em-muted: #9ca3af;
+    --em-accent: #38bdf8;
+    --em-accent-dim: rgba(56, 189, 248, 0.12);
+    --em-danger: #f87171;
+    --em-danger-bg: rgba(248, 113, 113, 0.12);
+    --em-success: #34d399;
+    --em-radius: 12px;
+    --em-radius-sm: 8px;
+    --em-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+}
+
+body {
+    background: var(--em-bg);
+    color: var(--em-text);
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+    margin: 0;
+    line-height: 1.5;
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* ---- Page shell — use most of the viewport width ---- */
+.entity-page {
+    max-width: none;
+    width: 100%;
+    margin: 0 auto;
+    padding: 1rem 1.25rem 2.5rem;
+    box-sizing: border-box;
+}
+
+/* Hub nav (connected resources) */
+.entity-hub {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-bottom: 1.25rem;
+    padding: 0.5rem;
+    background: var(--em-surface);
+    border: 1px solid var(--em-border);
+    border-radius: var(--em-radius);
+    box-shadow: var(--em-shadow);
+}
+
+.entity-hub__label {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.35rem 0.65rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--em-muted);
+}
+
+.entity-hub__link {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.45rem 0.85rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--em-muted);
+    text-decoration: none;
+    border-radius: 999px;
+    border: 1px solid var(--em-border);
+    background: var(--em-surface-2);
+    transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.entity-hub__link:hover {
+    color: var(--em-text);
+    border-color: var(--em-muted);
+    background: #273549;
+}
+
+.entity-hub__link.is-active {
+    color: var(--em-bg);
+    background: var(--em-accent);
+    border-color: var(--em-accent);
+}
+
+/* Header */
+.entity-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1.25rem;
+    margin-bottom: 1.75rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--em-border);
+}
+
+.entity-title {
+    margin: 0;
+    font-size: 1.75rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--em-text);
+}
+
+@supports (-webkit-background-clip: text) or (background-clip: text) {
+    .entity-title {
+        background: linear-gradient(135deg, #f9fafb 0%, var(--em-accent) 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+    }
+}
+
+.entity-subtitle {
+    margin: 0.35rem 0 0;
+    max-width: 42rem;
+    font-size: 0.95rem;
+    color: var(--em-muted);
+}
+
+.entity-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1rem;
+}
+
+.entity-meta {
+    font-size: 0.8125rem;
+    color: var(--em-muted);
+    font-variant-numeric: tabular-nums;
+    padding: 0.35rem 0.75rem;
+    background: var(--em-surface);
+    border: 1px solid var(--em-border);
+    border-radius: var(--em-radius-sm);
+}
+
+/* Buttons */
+.entity-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    padding: 0.5rem 1rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    border-radius: var(--em-radius-sm);
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: filter 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+    font-family: inherit;
+}
+
+.entity-btn--primary {
+    color: var(--em-bg);
+    background: var(--em-accent);
+    border-color: var(--em-accent);
+}
+
+.entity-btn--primary:hover {
+    filter: brightness(1.08);
+}
+
+.entity-btn--ghost {
+    color: var(--em-text);
+    background: var(--em-surface);
+    border-color: var(--em-border);
+}
+
+.entity-btn--ghost:hover {
+    background: var(--em-surface-2);
+    border-color: var(--em-muted);
+}
+
+.entity-btn--sm {
+    padding: 0.35rem 0.65rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.entity-btn--icon {
+    min-width: 2rem;
+    padding: 0.35rem;
+}
+
+/* Legacy class names used in JS / forms */
+.btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem 1rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    border-radius: var(--em-radius-sm);
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    color: var(--em-bg);
+    background: var(--em-accent);
+    transition: filter 0.15s ease;
+}
+
+.btn-primary:hover {
+    filter: brightness(1.08);
+}
+
+.btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    border-radius: 6px;
+    border: 1px solid var(--em-border);
+    background: var(--em-surface-2);
+    color: var(--em-text);
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.btn-secondary:hover {
+    background: #273549;
+    border-color: var(--em-muted);
+}
+
+.btn-success {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem 1rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    border-radius: var(--em-radius-sm);
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    color: var(--em-bg);
+    background: var(--em-success);
+    transition: filter 0.15s ease;
+}
+
+.btn-success:hover {
+    filter: brightness(1.06);
+}
+
+.btn-danger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2rem;
+    padding: 0.35rem 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    border-radius: 6px;
+    border: 1px solid rgba(248, 113, 113, 0.35);
+    background: var(--em-danger-bg);
+    color: var(--em-danger);
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s ease;
+}
+
+.btn-danger:hover {
+    background: rgba(248, 113, 113, 0.22);
+}
+
+/* Section + table */
+.entity-section {
+    margin-bottom: 2rem;
+}
+
+.entity-section__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem 1rem;
+    margin-bottom: 1rem;
+}
+
+.entity-section__title {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--em-text);
+}
+
+.entity-section__hint {
+    font-size: 0.75rem;
+    color: var(--em-muted);
+}
+
+.entity-table-scroll {
+    overflow-x: auto;
+    overflow-y: auto;
+    border-radius: var(--em-radius);
+    border: 1px solid var(--em-border);
+    background: var(--em-surface);
+    box-shadow: var(--em-shadow);
+    min-height: calc(100vh - 240px);
+    max-height: calc(100vh - 200px);
+}
+
+@media (max-width: 900px) {
+    .entity-table-scroll {
+        min-height: 55vh;
+        max-height: 70vh;
+    }
+}
+
+.entity-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+}
+
+.entity-table thead {
+    background: var(--em-surface-2);
+}
+
+.entity-table th {
+    padding: 0.65rem 0.85rem;
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--em-muted);
+    border-bottom: 1px solid var(--em-border);
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+.entity-table th a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.entity-table th a:hover {
+    color: var(--em-accent);
+}
+
+.entity-table td {
+    padding: 0.7rem 0.85rem;
+    border-bottom: 1px solid var(--em-border);
+    color: var(--em-text);
+    vertical-align: middle;
+    max-width: min(28rem, 32vw);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.entity-table tbody tr {
+    transition: background 0.12s ease;
+}
+
+.entity-table tbody tr:hover {
+    background: rgba(56, 189, 248, 0.04);
+}
+
+.entity-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.entity-th-actions {
+    width: 5.5rem;
+}
+
+.entity-th-filter {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 0.35rem;
+    padding: 0.2rem;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--em-muted);
+    cursor: pointer;
+    vertical-align: middle;
+    transition: color 0.15s ease, background 0.15s ease;
+}
+
+.entity-th-filter:hover {
+    color: var(--em-accent);
+    background: var(--em-accent-dim);
+}
+
+.entity-th-filter--active {
+    color: var(--em-accent);
+    background: var(--em-accent-dim);
+}
+
+.entity-th-filter--active:hover {
+    color: #7dd3fc;
+    background: rgba(56, 189, 248, 0.2);
+}
+
+.entity-th-filter__icon {
+    display: block;
+}
+
+.entity-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-top: 1rem;
+    padding: 0.75rem 1rem;
+    font-size: 0.8125rem;
+    color: var(--em-muted);
+    background: var(--em-surface);
+    border: 1px solid var(--em-border);
+    border-radius: var(--em-radius-sm);
+}
+
+/* Modal */
+#overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    padding: 1.5rem;
+    overflow-y: auto;
+    background: rgba(2, 6, 23, 0.72);
+    backdrop-filter: blur(4px);
+    align-items: flex-start;
+    justify-content: center;
+}
+
+#modal {
+    position: relative;
+    top: auto;
+    left: auto;
+    transform: none;
+    width: 100%;
+    max-width: min(92vw, 680px);
+    max-height: min(85vh, 720px);
+    margin: 2rem auto;
+    display: flex;
+    flex-direction: column;
+    background: var(--em-surface);
+    border: 1px solid var(--em-border);
+    border-radius: var(--em-radius);
+    box-shadow: var(--em-shadow), 0 0 0 1px rgba(255, 255, 255, 0.04);
+    overflow: hidden;
+}
+
+.entity-modal__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.1rem 1.25rem;
+    border-bottom: 1px solid var(--em-border);
+    background: linear-gradient(180deg, var(--em-surface-2) 0%, var(--em-surface) 100%);
+}
+
+#modal-h {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--em-text);
+    line-height: 1.3;
+}
+
+.entity-modal__close {
+    flex-shrink: 0;
+    width: 2.25rem;
+    height: 2.25rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: var(--em-radius-sm);
+    background: transparent;
+    color: var(--em-muted);
+    font-size: 1.35rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: color 0.15s ease, background 0.15s ease;
+}
+
+.entity-modal__close:hover {
+    color: var(--em-text);
+    background: var(--em-surface-2);
+}
+
+#modal-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1.25rem 1.25rem 1.5rem;
+    margin: 0;
+    text-align: left;
+}
+
+#modal-content label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--em-muted);
+    margin-bottom: 0.35rem;
+}
+
+#modal-content .field-input,
+.entity-page .field-input {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding: 0.5rem 0.65rem;
+    font-size: 0.875rem;
+    color: var(--em-text);
+    background: var(--em-bg);
+    border: 1px solid var(--em-border);
+    border-radius: var(--em-radius-sm);
+    font-family: inherit;
+    margin-bottom: 0.25rem;
+}
+
+#modal-content .field-input:focus,
+.entity-page .field-input:focus {
+    outline: none;
+    border-color: var(--em-accent);
+    box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+}
+
+#modal-content select.field-input {
+    cursor: pointer;
+}
+
+.entity-form-hint,
+.form-hint {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--em-muted);
+    margin: 0.25rem 0 0.75rem;
+    line-height: 1.4;
+    text-transform: none;
+    font-weight: 400;
+    letter-spacing: normal;
+}
+
+.entity-page form p {
+    margin: 0 0 1rem;
+}
+
+/* Filter popover */
+#filter-popup {
+    position: fixed;
+    inset: 0;
+    background: rgba(2, 6, 23, 0.55);
+    backdrop-filter: blur(2px);
+    display: none;
+    z-index: 1900;
+}
+
+#filter-content {
+    position: absolute;
+    min-width: 240px;
+    padding: 0;
+    background: var(--em-surface);
+    border: 1px solid var(--em-border);
+    border-radius: var(--em-radius-sm);
+    box-shadow: var(--em-shadow);
+}
+
+.entity-filter-box {
+    padding: 1rem;
+}
+
+.entity-filter-box input[type="text"] {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.5rem 0.65rem;
+    font-size: 0.875rem;
+    color: var(--em-text);
+    background: var(--em-bg);
+    border: 1px solid var(--em-border);
+    border-radius: var(--em-radius-sm);
+    margin-bottom: 0.75rem;
+}
+
+.entity-filter-box input:focus {
+    outline: none;
+    border-color: var(--em-accent);
+}
+
+.entity-filter-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.entity-filter-buttons button {
+    flex: 1;
+    min-width: 5rem;
+    padding: 0.45rem 0.75rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    border-radius: 6px;
+    border: 1px solid var(--em-border);
+    cursor: pointer;
+    font-family: inherit;
+    background: var(--em-surface-2);
+    color: var(--em-text);
+}
+
+.entity-filter-buttons button:first-of-type {
+    background: var(--em-accent);
+    border-color: var(--em-accent);
+    color: var(--em-bg);
+}
+
+.entity-filter-buttons button:hover {
+    filter: brightness(1.06);
+}
+
+/* Articles / repeatable rows (offers) */
+.articles-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.campaign-offer-row,
+.campaign-offer-create-row,
+.external_campaign_id-row,
+.articles-row,
+[class$="-row"] {
+    align-items: center;
+}
+
+#modal-content .campaign-offer-row,
+#modal-content .external_campaign_id-row,
+.entity-page .campaign-offer-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: flex-start;
+    margin-bottom: 0.65rem;
+}
+
+/* Searchable offer picker (campaigns) */
+.offer-combobox {
+    position: relative;
+    flex: 1;
+    min-width: min(100%, 220px);
+    max-width: 100%;
+}
+
+.offer-combobox--modal {
+    min-width: min(100%, 280px);
+}
+
+.offer-combobox__search {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.offer-combobox__list {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(100% + 4px);
+    z-index: 4000;
+    margin: 0;
+    padding: 0.35rem 0;
+    list-style: none;
+    max-height: min(280px, 40vh);
+    overflow-y: auto;
+    background: var(--em-surface);
+    border: 1px solid var(--em-border);
+    border-radius: var(--em-radius-sm);
+    box-shadow: var(--em-shadow);
+}
+
+.offer-combobox__list[hidden] {
+    display: none !important;
+}
+
+.offer-combobox__option {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8125rem;
+    color: var(--em-text);
+    cursor: pointer;
+    transition: background 0.1s ease;
+}
+
+.offer-combobox__option:hover,
+.offer-combobox__option.is-highlighted {
+    background: var(--em-accent-dim);
+    color: var(--em-accent);
+}
+
+.offer-combobox__empty {
+    padding: 0.6rem 0.75rem;
+    font-size: 0.75rem;
+    color: var(--em-muted);
+    font-style: italic;
+}
+
+.campaign-offer-row .edit_campaign_offers_cap {
+    max-width: 7rem;
+    flex-shrink: 0;
+}
+
+#modal-content .campaign-offer-views {
+    font-size: 0.75rem;
+    color: var(--em-muted);
+    white-space: nowrap;
+}
+
+/* Wide modals for complex forms (e.g. campaigns) */
+#modal.entity-modal--wide {
+    max-width: min(94vw, 820px);
+}

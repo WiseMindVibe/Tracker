@@ -42,6 +42,7 @@ class ModelNotifications
             OR aa.affiliate_program LIKE :q
             OR n.commission_id LIKE :q
             OR n.external_event_id LIKE :q
+            OR n.advertiser_external_id LIKE :q
         )";
     }
 

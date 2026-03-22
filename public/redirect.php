@@ -4,11 +4,16 @@
  * Campaign redirect: validate campaign + geo, pick least-filled eligible offer,
  * log click, redirect via buffer URL when available.
  *
+ * Buffers: TRACKER_DEFAULT_BUFFER_URL in .env (if set) is always used as the only buffer hop
+ * (?tc= click token). websites_buffers for the offer's website_id is used only when that env
+ * is unset. Prevents bad DB rows (e.g. network URLs) from skipping your site.
+ *
  * @see src/functions/tracker_logs.php — redirect_logs
  */
 
 require_once __DIR__ . '/../src/bootstrap.php';
 require_once __DIR__ . '/../src/functions/traffic_source_campaign.php';
+require_once __DIR__ . '/../src/functions/affiliate_offer_url.php';
 
 function safeRedirect(string $url): void
 {
@@ -16,15 +21,42 @@ function safeRedirect(string $url): void
     exit;
 }
 
-function buildBufferRedirectUrl(string $bufferBaseUrl, string $targetUrl): string
+/**
+ * Buffer URLs stored without a scheme (e.g. t.co/abc) must be absolute or browsers treat them as paths on the tracker host.
+ */
+function normalizeBufferBaseUrl(string $url): string
+{
+    $url = trim($url);
+    if ($url === '') {
+        return $url;
+    }
+    if (preg_match('#^https?://#i', $url)) {
+        return $url;
+    }
+    if (strpos($url, '//') === 0) {
+        return 'https:' . $url;
+    }
+
+    return 'https://' . ltrim($url, '/');
+}
+
+/**
+ * Buffer landing page receives only `tc` (clicks.click_id). Resolve to the offer via public/go.php (same DB).
+ * If buffer_url contains {url}, it is replaced with rawurlencode($fullAffiliateUrl) (legacy / full-URL-in-query).
+ */
+function buildBufferRedirectUrl(string $bufferBaseUrl, string $clickId, string $fullAffiliateUrl): string
 {
     $bufferBaseUrl = trim($bufferBaseUrl);
     if (strpos($bufferBaseUrl, '{url}') !== false) {
-        return str_replace('{url}', rawurlencode($targetUrl), $bufferBaseUrl);
-    }
-    $sep = strpos($bufferBaseUrl, '?') !== false ? '&' : '?';
+        $out = str_replace('{url}', rawurlencode($fullAffiliateUrl), $bufferBaseUrl);
 
-    return rtrim($bufferBaseUrl, '/') . $sep . 'r=' . rawurlencode($targetUrl);
+        return normalizeBufferBaseUrl($out);
+    }
+
+    $base = rtrim(normalizeBufferBaseUrl($bufferBaseUrl), '/');
+    $sep = strpos($base, '?') !== false ? '&' : '?';
+
+    return $base . $sep . 'tc=' . rawurlencode($clickId);
 }
 
 function offerCountryMatchesVisitor(?string $offerCountry, string $visitorCountryCode): bool
@@ -35,41 +67,6 @@ function offerCountryMatchesVisitor(?string $offerCountry, string $visitorCountr
     }
 
     return $oc === $visitorCountryCode;
-}
-
-function affiliateProgramSlugFromAccountId(int $accountId): string
-{
-    try {
-        $stmt = db()->prepare('SELECT LOWER(TRIM(affiliate_program)) AS slug FROM affiliate_accounts WHERE id = :id LIMIT 1');
-        $stmt->execute([':id' => $accountId]);
-        $slug = (string) ($stmt->fetchColumn() ?: '');
-    } catch (Throwable $e) {
-        return 'default';
-    }
-    if ($slug === '') {
-        return 'default';
-    }
-    if (strpos($slug, 'oponia') !== false) {
-        return 'oponia';
-    }
-    if (strpos($slug, 'yieldkit') !== false) {
-        return 'yieldkit';
-    }
-
-    return $slug;
-}
-
-function buildCustomAffiliateUrl(string $affiliateLink, string $program, string $clickId): string
-{
-    $sep = strpos($affiliateLink, '?') === false ? '?' : '&';
-    switch (strtolower($program)) {
-        case 'oponia':
-            return $affiliateLink . $sep . 'placementId=' . urlencode($clickId);
-        case 'yieldkit':
-            return $affiliateLink . $sep . 'yk_tag=' . urlencode($clickId);
-        default:
-            return $affiliateLink . $sep . 'subid=' . urlencode($clickId);
-    }
 }
 
 function setAffiliateUrlCookie(string $customAffiliateUrl): void
@@ -132,10 +129,13 @@ if (!preg_match('/^[0-9a-fA-F\-]{4,64}$/', $internalCampaignId)) {
     safeRedirect('https://google.com');
 }
 
-$countriesPath = __DIR__ . '/../assets/includes/countries.json';
+$countriesPath = __DIR__ . '/../data/countries.json';
+if (!is_file($countriesPath)) {
+    $countriesPath = __DIR__ . '/../assets/includes/countries.json';
+}
 $countryAliases = [];
 $countries = [];
-if (file_exists($countriesPath)) {
+if (is_file($countriesPath)) {
     $raw = file_get_contents($countriesPath);
     $countries = json_decode($raw, true) ?: [];
 }
@@ -334,20 +334,39 @@ try {
 }
 
 $buffers = [];
+$dbBufferCount = 0;
 try {
-    $stmt = db()->prepare('SELECT id, buffer_url FROM websites_buffers WHERE website_id = :wid');
-    $stmt->execute([':wid' => $selectedOffer['website_id']]);
-    $buffers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $wid = $selectedOffer['website_id'] ?? null;
+    if ($wid !== null && $wid !== '' && (int) $wid > 0) {
+        $stmt = db()->prepare('SELECT id, buffer_url FROM websites_buffers WHERE website_id = :wid');
+        $stmt->execute([':wid' => (int) $wid]);
+        $buffers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+    $dbBufferCount = count($buffers);
 } catch (Throwable $e) {
     tracker_redirect_log('db_error_fetch_buffers', $e->getMessage(), $campaignUuid, null, 'error');
+}
+
+$defaultBufferUrl = trim((string) (getenv('TRACKER_DEFAULT_BUFFER_URL') ?: ''));
+if ($defaultBufferUrl !== '') {
+    if ($dbBufferCount > 0) {
+        tracker_redirect_log(
+            'default_buffer_overrides_db',
+            'TRACKER_DEFAULT_BUFFER_URL takes precedence over websites_buffers',
+            $campaignUuid,
+            ['db_buffer_count' => $dbBufferCount, 'website_id' => $selectedOffer['website_id'] ?? null]
+        );
+    } else {
+        tracker_redirect_log('default_buffer_used', 'Using TRACKER_DEFAULT_BUFFER_URL (no DB buffers for this offer)', $campaignUuid, ['website_id' => $selectedOffer['website_id'] ?? null]);
+    }
+    $buffers = [['id' => 0, 'buffer_url' => $defaultBufferUrl]];
 }
 
 $clickId = uniqid('cid', true);
 $programName = affiliateProgramSlugFromAccountId((int) $selectedOffer['affiliate_program_id']);
 $customAffiliateUrl = buildCustomAffiliateUrl($selectedOffer['affiliate_link'], $programName, $clickId);
 
-setAffiliateUrlCookie($customAffiliateUrl);
-
+$clickInserted = false;
 try {
     $stmt = db()->prepare('
         INSERT INTO clicks
@@ -374,21 +393,25 @@ try {
         ':carrier' => $visitor['carrier'],
         ':banner_id' => $visitor['banner_id'],
     ]);
+    $clickInserted = true;
 } catch (Throwable $e) {
     tracker_redirect_log('db_error_insert_click', $e->getMessage(), $campaignUuid, null, 'error');
 }
 
 $destUrl = $customAffiliateUrl;
-if ($buffers !== []) {
+if ($buffers !== [] && $clickInserted) {
     $selectedBuffer = $buffers[array_rand($buffers)];
-    $destUrl = buildBufferRedirectUrl((string) $selectedBuffer['buffer_url'], $customAffiliateUrl);
+    $destUrl = buildBufferRedirectUrl((string) $selectedBuffer['buffer_url'], $clickId, $customAffiliateUrl);
     tracker_redirect_log(
         'served_offer',
         "offer_id: {$selectedOffer['offer_id']} via buffer",
         $campaignUuid,
         ['offer_id' => $selectedOffer['offer_id'], 'buffer_id' => $selectedBuffer['id'] ?? null, 'traffic_subid' => $providedSubid ?: null]
     );
-} else {
+} elseif ($buffers !== [] && !$clickInserted) {
+    tracker_redirect_log('buffer_skipped_click_failed', 'Falling back to direct offer URL', $campaignUuid, null, 'warning');
+} elseif ($buffers === []) {
+    setAffiliateUrlCookie($customAffiliateUrl);
     tracker_redirect_log(
         'served_offer_direct',
         "offer_id: {$selectedOffer['offer_id']} (no buffer domains)",

@@ -4,8 +4,33 @@ require_once __DIR__ . '/../src/bootstrap.php';
 require_once __DIR__ . '/../src/services/telegram.php';
 
 /**
- * Accepts legacy params (click_id, payout, status) and YieldKit-style S2S macros
- * (SUB_ID, COMMISSION, STATE, EVENT_TYPE, COMMISSION_ID, EVENT_ID, SALES_AMOUNT, …).
+ * S2S postback (EUR only; no currency parameter). Configure your network URL like:
+ *
+ *   https://<tracker-host>/public/postback.php
+ *     ?SUB_ID={SUB_ID}
+ *     &COMMISSION={COMMISSION}
+ *     &STATE={STATE}
+ *     &EVENT_TYPE={EVENT_TYPE}
+ *     &EVENT_ID={EVENT_ID}
+ *     &COMMISSION_ID={COMMISSION_ID}
+ *     &ADVERTISER_ID={ADVERTISER_ID}
+ *     &SALES_AMOUNT={SALES_AMOUNT}
+ *     &SALES_DATE={SALES_DATE}
+ *     &MODIFIED_DATE={MODIFIED_DATE}
+ *
+ * Macros:
+ * - EVENT_ID — unique event id
+ * - ADVERTISER_ID — advertiser id from the network
+ * - COMMISSION_ID — commission id (repeated on updates/cancellations); used for dedupe when present
+ * - COMMISSION — amount in EUR; positive for new commission, negative if cancelled
+ * - SALES_DATE — when the sale happened
+ * - MODIFIED_DATE — when this event occurred
+ * - SUB_ID — sub id (e.g. from yk_tag)
+ * - SALES_AMOUNT — purchase total (EUR)
+ * - EVENT_TYPE — NEW or UPDATE
+ * - STATE — OPEN, CONFIRMED, REJECTED, DELAYED (PAID also accepted for legacy)
+ *
+ * Backwards compatibility: click_id, payout, status (aliases for SUB_ID, COMMISSION, STATE).
  */
 function normalizeConversionStatus(string $raw): ?string
 {
@@ -53,6 +78,8 @@ if ($eventType !== 'NEW' && $eventType !== 'UPDATE' && $eventType !== '') {
 $commissionIdParam = isset($_GET['COMMISSION_ID']) ? trim((string) $_GET['COMMISSION_ID']) : '';
 $eventIdParam = $_GET['EVENT_ID'] ?? $_GET['event_id'] ?? null;
 $eventIdParam = $eventIdParam !== null ? trim((string) $eventIdParam) : '';
+
+$advertiserIdParam = isset($_GET['ADVERTISER_ID']) ? trim((string) $_GET['ADVERTISER_ID']) : '';
 
 $salesAmountRaw = $_GET['SALES_AMOUNT'] ?? null;
 $salesDateRaw = $_GET['SALES_DATE'] ?? null;
@@ -129,10 +156,10 @@ $affiliateAccountId = (int) $click['affiliate_program_id'];
 try {
     $stmt = $db->prepare('
         INSERT INTO commission_events (
-            click_internal_id, dedupe_key, commission_id, external_event_id, event_type,
+            click_internal_id, dedupe_key, commission_id, external_event_id, advertiser_external_id, event_type,
             commission_eur, sales_amount_eur, state, sales_date, modified_date
         ) VALUES (
-            :cid, :dedupe, :comm_id, :evt_id, :evtype,
+            :cid, :dedupe, :comm_id, :evt_id, :adv_id, :evtype,
             :commission_eur, :sales_amt, :state, :sales_dt, :mod_dt
         )
         ON DUPLICATE KEY UPDATE
@@ -141,6 +168,7 @@ try {
             state = VALUES(state),
             event_type = VALUES(event_type),
             external_event_id = VALUES(external_event_id),
+            advertiser_external_id = VALUES(advertiser_external_id),
             sales_date = VALUES(sales_date),
             modified_date = VALUES(modified_date),
             updated_at = CURRENT_TIMESTAMP
@@ -150,6 +178,7 @@ try {
         ':dedupe' => $dedupeKey,
         ':comm_id' => $commissionIdParam !== '' ? $commissionIdParam : null,
         ':evt_id' => $eventIdParam !== '' ? $eventIdParam : null,
+        ':adv_id' => $advertiserIdParam !== '' ? substr($advertiserIdParam, 0, 128) : null,
         ':evtype' => $eventType !== '' ? $eventType : null,
         ':commission_eur' => $commissionEur,
         ':sales_amt' => $salesAmountEur,
@@ -229,6 +258,7 @@ if (!$notification) {
 $eventTypeDb = $eventType !== '' ? $eventType : null;
 $commissionIdDb = $commissionIdParam !== '' ? $commissionIdParam : null;
 $externalEvtDb = $eventIdParam !== '' ? $eventIdParam : null;
+$advertiserExtDb = $advertiserIdParam !== '' ? substr($advertiserIdParam, 0, 128) : null;
 
 try {
     $stmt = $db->prepare('
@@ -243,6 +273,7 @@ try {
             event_type,
             commission_id,
             external_event_id,
+            advertiser_external_id,
             currency,
             sales_amount
         )
@@ -257,6 +288,7 @@ try {
             :event_type,
             :commission_id,
             :external_event_id,
+            :advertiser_external_id,
             :currency,
             :sales_amount
         )
@@ -272,6 +304,7 @@ try {
         ':event_type' => $eventTypeDb,
         ':commission_id' => $commissionIdDb,
         ':external_event_id' => $externalEvtDb,
+        ':advertiser_external_id' => $advertiserExtDb,
         ':currency' => 'EUR',
         ':sales_amount' => $salesAmountEur,
     ]);
@@ -285,15 +318,19 @@ $db->commit();
 
 $evtLabel = $eventTypeDb ?? '—';
 $commLabel = $commissionIdDb ?? '—';
+$advLabel = $advertiserExtDb ?? '—';
+$evtIdLabel = $externalEvtDb ?? '—';
 $message = "
 <b>💰 Conversion</b> ({$evtLabel})
 
 <b>Offer:</b> {$notification['offer_name']}
 <b>Affiliate:</b> {$notification['affiliate_name']}
+<b>Advertiser id:</b> {$advLabel}
 <b>State:</b> {$status}
 <b>Commission (EUR):</b> {$commissionEur}
 
 <b>Rollup payout:</b> {$payoutSum} EUR
+<b>Event id:</b> {$evtIdLabel}
 <b>Commission id:</b> {$commLabel}
 ";
 

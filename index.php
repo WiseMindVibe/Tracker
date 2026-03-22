@@ -4,6 +4,7 @@ require_once __DIR__ . "/src/TrackerAdminAccess.php";
 TrackerAdminAccess::enforceOrExit();
 
 $page = $_GET['page'] ?? 'Dashboard';
+$page = ucfirst(strtolower($page));
 $action = $_GET['action'] ?? 'index';
 
 $controllerClass = 'Controller' . ucfirst($page);

@@ -109,7 +109,7 @@ $visitor = [
     'isp' => $_GET['isp'] ?? 'Unknown',
     'carrier' => $_GET['carrier'] ?? 'Unknown',
     'zone_id' => isset($_GET['zoneid']) ? ($_GET['zoneid'] === '' ? null : $_GET['zoneid']) : null,
-    'sub_zone_id' => isset($_GET['subzone_id']) ? ($_GET['subzone_id'] === '' ? null : $_GET['subzone_id']) : null,
+    'subzone_ide_id' => isset($_GET['subzone_id']) ? ($_GET['subzone_id'] === '' ? null : $_GET['subzone_id']) : null,
     'user_agent' => $_GET['useragent'] ?? ($_SERVER['HTTP_USER_AGENT'] ?? 'Unknown'),
     'user_activity' => $_GET['user_activity'] ?? null,
     'banner_id' => $_GET['banner_id'] ?? null,
@@ -192,8 +192,8 @@ if ($campaignCountryCode !== '' && !in_array($visitorCountryCode, $countryCodesA
     try {
         $impressionClickId = uniqid('imp', true);
         $stmtImp = db()->prepare('
-            INSERT INTO clicks (click_id, offer_id, campaign_id, external_campaign_id, country, OS, browser, zone_id, sub_zone_id, cost, ip, user_agent, connection_type, isp, carrier, banner_id, created_at)
-            VALUES (:click_id, NULL, :campaign_id, :external_campaign_id, :country, :os, :browser, :zone_id, :sub_zone_id, :cost, INET6_ATON(:ip), :user_agent, :connection_type, :isp, :carrier, :banner_id, NOW())
+            INSERT INTO clicks (click_id, offer_id, campaign_id, external_campaign_id, country, OS, browser, zone_id, subzone_ide_id, cost, ip, user_agent, connection_type, isp, carrier, banner_id, created_at)
+            VALUES (:click_id, NULL, :campaign_id, :external_campaign_id, :country, :os, :browser, :zone_id, :subzone_ide_id, :cost, INET6_ATON(:ip), :user_agent, :connection_type, :isp, :carrier, :banner_id, NOW())
         ');
         $stmtImp->execute([
             ':click_id' => $impressionClickId,
@@ -203,7 +203,7 @@ if ($campaignCountryCode !== '' && !in_array($visitorCountryCode, $countryCodesA
             ':os' => $visitor['os'],
             ':browser' => $visitor['browser'],
             ':zone_id' => $visitor['zone_id'],
-            ':sub_zone_id' => $visitor['sub_zone_id'],
+            ':subzone_ide_id' => $visitor['subzone_ide_id'],
             ':cost' => 0.0,
             ':ip' => $visitor['ip'],
             ':user_agent' => $visitor['user_agent'],
@@ -370,9 +370,9 @@ $clickInserted = false;
 try {
     $stmt = db()->prepare('
         INSERT INTO clicks
-        (click_id, offer_id, campaign_id, external_campaign_id, country, region, OS, browser, zone_id, sub_zone_id, cost, ip, user_agent, connection_type, isp, carrier, banner_id, created_at)
+        (click_id, offer_id, campaign_id, external_campaign_id, country, region, OS, browser, zone_id, subzone_ide_id, cost, ip, user_agent, connection_type, isp, carrier, banner_id, created_at)
         VALUES
-        (:click_id, :offer_id, :campaign_id, :external_campaign_id, :country, :region, :os, :browser, :zone_id, :sub_zone_id, :cost, INET6_ATON(:ip), :user_agent, :connection_type, :isp, :carrier, :banner_id, NOW())
+        (:click_id, :offer_id, :campaign_id, :external_campaign_id, :country, :region, :os, :browser, :zone_id, :subzone_ide_id, :cost, INET6_ATON(:ip), :user_agent, :connection_type, :isp, :carrier, :banner_id, NOW())
     ');
     $stmt->execute([
         ':click_id' => $clickId,
@@ -384,7 +384,7 @@ try {
         ':os' => $visitor['os'],
         ':browser' => $visitor['browser'],
         ':zone_id' => $visitor['zone_id'],
-        ':sub_zone_id' => $visitor['sub_zone_id'],
+        ':subzone_ide_id' => $visitor['subzone_ide_id'],
         ':cost' => $visitor['cost'],
         ':ip' => $visitor['ip'],
         ':user_agent' => $visitor['user_agent'],

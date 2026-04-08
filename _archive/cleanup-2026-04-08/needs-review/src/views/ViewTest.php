@@ -4,9 +4,10 @@
 <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/litepicker.js"></script>
 
 <?php
-$dashBase = 'index.php?page=dashboard&action=index';
+$testBase = 'index.php?page=test&action=index';
 $rangeLinks = [
     'today' => 'Today',
+    'last6' => 'Last 2 days',
     'yesterday' => 'Yesterday',
     'this_week' => 'This week',
     'last7' => 'Last 7 days',
@@ -31,6 +32,9 @@ $fmtInt = static function (int $n): string {
     return number_format($n);
 };
 ?>
+
+<?= $fmtInt((int) $stats['total_clicks']) ?>
+
 
 <div class="dashboard-page">
     <header class="dashboard-header">
@@ -89,35 +93,20 @@ $fmtInt = static function (int $n): string {
             <article class="kpi-card">
                 <span class="kpi-card__label">Conversions</span>
                 <span class="kpi-card__value"><?= $fmtInt((int) $stats['total_conversions']) ?></span>
-                <span class="kpi-card__hint">Commission rows with known status (open, confirmed, paid, rejected); excludes unknown</span>
-            </article>
-            <article class="kpi-card">
-                <span class="kpi-card__label">Conv. rate</span>
-                <span class="kpi-card__value"><?= $fmtPct($stats['cr'] !== null ? (float) $stats['cr'] : null) ?></span>
-                <span class="kpi-card__hint">Conversions ÷ clicks</span>
-            </article>
-            <article class="kpi-card">
-                <span class="kpi-card__label">Rejection rate</span>
-                <span class="kpi-card__value"><?= $fmtPct($stats['rejection_rate'] !== null ? (float) $stats['rejection_rate'] : null) ?></span>
-                <span class="kpi-card__hint">No confirmed/paid: R÷(O+R). Else: R÷(O+C+P+R).</span>
+                <span class="kpi-card__hint">Open + confirmed + paid + rejected</span>
             </article>
             <article class="kpi-card kpi-card--profit">
                 <span class="kpi-card__label">ROI</span>
                 <span class="kpi-card__value"><?= $fmtPct($stats['roi'] !== null ? (float) $stats['roi'] : null) ?></span>
-                <span class="kpi-card__hint">Uses revenue excluding rejected</span>
+                <span class="kpi-card__hint">All statuses included in revenue</span>
             </article>
             <article class="kpi-card">
                 <span class="kpi-card__label">Cost</span>
                 <span class="kpi-card__value"><?= $fmtMoney((float) $stats['cost']) ?></span>
             </article>
             <article class="kpi-card">
-                <span class="kpi-card__label">Revenue (all)</span>
+                <span class="kpi-card__label">Revenue</span>
                 <span class="kpi-card__value"><?= $fmtMoney((float) $stats['revenue']) ?></span>
-            </article>
-            <article class="kpi-card">
-                <span class="kpi-card__label">Revenue (ROI)</span>
-                <span class="kpi-card__value"><?= $fmtMoney((float) ($stats['revenue_for_roi'] ?? 0)) ?></span>
-                <span class="kpi-card__hint">Excludes rejected</span>
             </article>
             <article class="kpi-card kpi-card--profit">
                 <span class="kpi-card__label">Profit</span>
@@ -128,7 +117,7 @@ $fmtInt = static function (int $n): string {
 
     <section class="dash-section" aria-labelledby="dash-status-heading">
         <h2 id="dash-status-heading" class="dash-section__title">Conversions by status</h2>
-        <p class="dash-section__lede">Count and revenue sum per status in the selected range (attributed to the click’s date).</p>
+        <p class="dash-section__lede">Count and payout sum per status in the selected range.</p>
         <div class="status-grid">
             <article class="status-card">
                 <h3 class="status-card__title">Open</h3>
@@ -163,7 +152,7 @@ $fmtInt = static function (int $n): string {
 
     <section class="dash-section" aria-labelledby="dash-aff-heading">
         <h2 id="dash-aff-heading" class="dash-section__title">By affiliate program</h2>
-        <p class="dash-section__lede">Cost, profit, CR, rejection rate, and ROI (revenue excludes rejected) per program.</p>
+        <p class="dash-section__lede">Cost, profit, conversion rate, and ROI for each program in the selected range.</p>
 
         <?php if (count($affiliates) === 0): ?>
             <p class="dash-empty">No click data in this range.</p>
@@ -176,7 +165,6 @@ $fmtInt = static function (int $n): string {
                             <th scope="col" class="num">Clicks</th>
                             <th scope="col" class="num">Conv.</th>
                             <th scope="col" class="num">CR</th>
-                            <th scope="col" class="num">Rej.</th>
                             <th scope="col" class="num">Cost</th>
                             <th scope="col" class="num">Profit</th>
                             <th scope="col" class="num">ROI</th>
@@ -189,7 +177,6 @@ $fmtInt = static function (int $n): string {
                                 <td class="num"><?= $fmtInt((int) $row['clicks']) ?></td>
                                 <td class="num"><?= $fmtInt((int) $row['conversions']) ?></td>
                                 <td class="num"><?= $fmtPct((float) $row['cr'], 2) ?></td>
-                                <td class="num"><?= $fmtPct($row['rejection_rate'] !== null ? (float) $row['rejection_rate'] : null) ?></td>
                                 <td class="num"><?= $fmtMoney((float) $row['cost']) ?></td>
                                 <td class="num <?= ((float) $row['profit'] >= 0) ? 'pos' : 'neg' ?>"><?= $fmtMoney((float) $row['profit']) ?></td>
                                 <td class="num"><?= $fmtPct($row['roi'] !== null ? (float) $row['roi'] : null) ?></td>
@@ -205,7 +192,7 @@ $fmtInt = static function (int $n): string {
         <h2 id="dash-top-heading" class="dash-section__title">Top offers</h2>
         <p class="dash-section__lede">
             Always uses the last 7 days (rolling): <strong><?= htmlspecialchars($topOffersRangeLabel) ?></strong>.
-            ROI and profit use revenue excluding rejected; top 5 by ROI, CR, and profit.
+            Top 5 by ROI, CR, and profit.
         </p>
 
         <div class="top-offers-grid">
@@ -220,9 +207,6 @@ $fmtInt = static function (int $n): string {
                                 <span class="top-offers-list__meta">
                                     ROI <?= $fmtPct($o['roi'] !== null ? (float) $o['roi'] : null) ?>
                                     · <?= $fmtMoney((float) $o['profit']) ?> profit
-                                    <?php if (isset($o['rejection_rate']) && $o['rejection_rate'] !== null): ?>
-                                        · Rej. <?= $fmtPct((float) $o['rejection_rate']) ?>
-                                    <?php endif; ?>
                                 </span>
                             </div>
                         </li>
@@ -281,3 +265,4 @@ $fmtInt = static function (int $n): string {
 
 
 <script src="./src/assets/js/dashboard.js" defer></script>
+

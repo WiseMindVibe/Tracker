@@ -14,7 +14,6 @@ class ControllerInspect
         $offer = null;
         $clickBounds = null;
         $statsLifetime = null;
-        $stats7 = null;
         $stats30 = null;
         $rangeLifetime = null;
         $range7 = null;
@@ -40,7 +39,6 @@ class ControllerInspect
                     $rangeLifetime['start'],
                     $rangeLifetime['end']
                 );
-                $stats7 = ModelInspect::fetchOfferStats($offerId, $range7['start'], $range7['end']);
                 $stats30 = ModelInspect::fetchOfferStats($offerId, $range30['start'], $range30['end']);
 
                 $topCountriesLifetime = ModelInspect::fetchTopCountries(

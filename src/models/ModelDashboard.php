@@ -1,8 +1,25 @@
 <?php
 
+require_once __DIR__ . '/../services/conversion_metrics.php';
+
 class ModelDashboard
 {
-    private const CONV_STATUSES = "('open','confirmed','paid','rejected','delayed')";
+    /** @see migration 004.1_create_conversions_table */
+    private const STATUS_OPEN = 1;
+    private const STATUS_CONFIRMED = 2;
+    private const STATUS_REJECTED = 3;
+    private const STATUS_PAID = 4;
+
+    /**
+     * @return array{start: string, end: string}
+     */
+    private static function dateBounds(string $start, string $end): array
+    {
+        return [
+            ':start' => $start . ' 00:00:00',
+            ':end' => $end . ' 23:59:59',
+        ];
+    }
 
     /**
      * Resolve preset or custom range to inclusive Y-m-d bounds (server timezone).
@@ -104,60 +121,96 @@ class ModelDashboard
     }
 
     /**
-     * @return array<string, float|int>
+     * @return array<string, float|int|null>
      */
     public static function fetchAggregateStats(string $start, string $end): array
     {
+        $bounds = self::dateBounds($start, $end);
+        $pdo = db();
+
+        $o = self::STATUS_OPEN;
+        $cf = self::STATUS_CONFIRMED;
+        $rj = self::STATUS_REJECTED;
+        $pd = self::STATUS_PAID;
+
+        // Single round-trip: two one-row derived tables (avoids duplicate click scan vs two statements).
         $sql = "
             SELECT
-                COUNT(*) AS total_clicks,
-                SUM(CASE WHEN cv.status IN " . self::CONV_STATUSES . " THEN 1 ELSE 0 END) AS total_conversions,
-                SUM(CASE WHEN cv.status = 'open' THEN 1 ELSE 0 END) AS open_count,
-                SUM(CASE WHEN cv.status = 'open' THEN cv.payout ELSE 0 END) AS open_sum,
-                SUM(CASE WHEN cv.status = 'confirmed' THEN 1 ELSE 0 END) AS confirmed_count,
-                SUM(CASE WHEN cv.status = 'confirmed' THEN cv.payout ELSE 0 END) AS confirmed_sum,
-                SUM(CASE WHEN cv.status = 'paid' THEN 1 ELSE 0 END) AS paid_count,
-                SUM(CASE WHEN cv.status = 'paid' THEN cv.payout ELSE 0 END) AS paid_sum,
-                SUM(CASE WHEN cv.status = 'rejected' THEN 1 ELSE 0 END) AS rejected_count,
-                SUM(CASE WHEN cv.status = 'rejected' THEN cv.payout ELSE 0 END) AS rejected_sum,
-                SUM(CASE WHEN cv.status = 'delayed' THEN 1 ELSE 0 END) AS delayed_count,
-                SUM(CASE WHEN cv.status = 'delayed' THEN cv.payout ELSE 0 END) AS delayed_sum,
-                COALESCE(SUM(c.cost), 0) AS cost,
-                COALESCE(SUM(cv.payout), 0) AS revenue_all_statuses
-            FROM clicks c
-            LEFT JOIN conversions cv ON cv.click_internal_id = c.id
-            WHERE c.created_at >= :start AND c.created_at <= :end
+                clic.total_clicks,
+                clic.cost,
+                COALESCE(conv.total_conversions, 0) AS total_conversions,
+                COALESCE(conv.open_count, 0) AS open_count,
+                COALESCE(conv.open_sum, 0) AS open_sum,
+                COALESCE(conv.confirmed_count, 0) AS confirmed_count,
+                COALESCE(conv.confirmed_sum, 0) AS confirmed_sum,
+                COALESCE(conv.paid_count, 0) AS paid_count,
+                COALESCE(conv.paid_sum, 0) AS paid_sum,
+                COALESCE(conv.rejected_count, 0) AS rejected_count,
+                COALESCE(conv.rejected_sum, 0) AS rejected_sum,
+                COALESCE(conv.revenue_all_statuses, 0) AS revenue_all_statuses,
+                COALESCE(conv.revenue_for_roi, 0) AS revenue_for_roi
+            FROM (
+                SELECT
+                    COUNT(*) AS total_clicks,
+                    COALESCE(SUM(c.cost), 0) AS cost
+                FROM clicks c
+                WHERE c.created_at >= :start AND c.created_at <= :end
+            ) clic
+            CROSS JOIN (
+                SELECT
+                    SUM(CASE WHEN cv.status IN (1,2,3,4) THEN 1 ELSE 0 END) AS total_conversions,
+                    SUM(CASE WHEN cv.status = {$o} THEN 1 ELSE 0 END) AS open_count,
+                    SUM(CASE WHEN cv.status = {$o} THEN cv.revenue ELSE 0 END) AS open_sum,
+                    SUM(CASE WHEN cv.status = {$cf} THEN 1 ELSE 0 END) AS confirmed_count,
+                    SUM(CASE WHEN cv.status = {$cf} THEN cv.revenue ELSE 0 END) AS confirmed_sum,
+                    SUM(CASE WHEN cv.status = {$pd} THEN 1 ELSE 0 END) AS paid_count,
+                    SUM(CASE WHEN cv.status = {$pd} THEN cv.revenue ELSE 0 END) AS paid_sum,
+                    SUM(CASE WHEN cv.status = {$rj} THEN 1 ELSE 0 END) AS rejected_count,
+                    SUM(CASE WHEN cv.status = {$rj} THEN cv.revenue ELSE 0 END) AS rejected_sum,
+                    COALESCE(SUM(CASE WHEN cv.status IN (1,2,3,4) THEN cv.revenue ELSE 0 END), 0) AS revenue_all_statuses,
+                    COALESCE(SUM(CASE WHEN cv.status != {$rj} THEN cv.revenue ELSE 0 END), 0) AS revenue_for_roi
+                FROM conversions cv
+                INNER JOIN clicks c ON c.id = cv.click_id
+                WHERE c.created_at >= :start AND c.created_at <= :end
+            ) conv
         ";
 
-        $stmt = db()->prepare($sql);
-        $stmt->execute([
-            ':start' => $start . ' 00:00:00',
-            ':end' => $end . ' 23:59:59',
-        ]);
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($bounds);
         $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
         $cost = (float) ($row['cost'] ?? 0);
-        $revenue = (float) ($row['revenue_all_statuses'] ?? 0);
-        $profit = $revenue - $cost;
-        $roi = $cost > 0 ? ($profit / $cost) * 100.0 : null;
+        $revenueTotal = (float) ($row['revenue_all_statuses'] ?? 0);
+        $revenueForRoi = (float) ($row['revenue_for_roi'] ?? 0);
+        $profit = $revenueForRoi - $cost;
+        $roi = ConversionMetrics::roiPercent($cost, $revenueForRoi);
+        $totalClicks = (int) ($row['total_clicks'] ?? 0);
+        $totalConversions = (int) ($row['total_conversions'] ?? 0);
+        $openCount = (int) ($row['open_count'] ?? 0);
+        $confirmedCount = (int) ($row['confirmed_count'] ?? 0);
+        $paidCount = (int) ($row['paid_count'] ?? 0);
+        $rejectedCount = (int) ($row['rejected_count'] ?? 0);
+        $cr = ConversionMetrics::conversionRate($totalClicks, $totalConversions);
+        $rejectionRate = ConversionMetrics::rejectionRate($openCount, $confirmedCount, $paidCount, $rejectedCount);
 
         return [
-            'total_clicks' => (int) ($row['total_clicks'] ?? 0),
-            'total_conversions' => (int) ($row['total_conversions'] ?? 0),
-            'open_count' => (int) ($row['open_count'] ?? 0),
+            'total_clicks' => $totalClicks,
+            'total_conversions' => $totalConversions,
+            'open_count' => $openCount,
             'open_sum' => (float) ($row['open_sum'] ?? 0),
-            'confirmed_count' => (int) ($row['confirmed_count'] ?? 0),
+            'confirmed_count' => $confirmedCount,
             'confirmed_sum' => (float) ($row['confirmed_sum'] ?? 0),
-            'paid_count' => (int) ($row['paid_count'] ?? 0),
+            'paid_count' => $paidCount,
             'paid_sum' => (float) ($row['paid_sum'] ?? 0),
-            'rejected_count' => (int) ($row['rejected_count'] ?? 0),
+            'rejected_count' => $rejectedCount,
             'rejected_sum' => (float) ($row['rejected_sum'] ?? 0),
-            'delayed_count' => (int) ($row['delayed_count'] ?? 0),
-            'delayed_sum' => (float) ($row['delayed_sum'] ?? 0),
             'cost' => $cost,
-            'revenue' => $revenue,
+            'revenue' => $revenueTotal,
+            'revenue_for_roi' => $revenueForRoi,
             'profit' => $profit,
             'roi' => $roi,
+            'cr' => $cr,
+            'rejection_rate' => $rejectionRate,
         ];
     }
 
@@ -166,44 +219,136 @@ class ModelDashboard
      */
     public static function fetchAffiliateBreakdown(string $start, string $end): array
     {
-        $sql = "
+        $bounds = self::dateBounds($start, $end);
+        $pdo = db();
+
+        $sqlClicks = "
             SELECT
                 aa.id AS affiliate_id,
                 COALESCE(aa.affiliate_program, 'Unassigned') AS affiliate_name,
                 COUNT(c.id) AS clicks,
-                SUM(CASE WHEN cv.status IN " . self::CONV_STATUSES . " THEN 1 ELSE 0 END) AS conversions,
-                COALESCE(SUM(c.cost), 0) AS cost,
-                COALESCE(SUM(cv.payout), 0) AS revenue
+                COALESCE(SUM(c.cost), 0) AS cost
             FROM clicks c
-            LEFT JOIN conversions cv ON cv.click_internal_id = c.id
             LEFT JOIN offers o ON o.id = c.offer_id
             LEFT JOIN affiliate_accounts aa ON aa.id = o.affiliate_program_id
             WHERE c.created_at >= :start AND c.created_at <= :end
             GROUP BY aa.id, aa.affiliate_program
-            HAVING COUNT(c.id) > 0
-                OR SUM(CASE WHEN cv.status IN " . self::CONV_STATUSES . " THEN 1 ELSE 0 END) > 0
-                OR COALESCE(SUM(c.cost), 0) > 0
-                OR COALESCE(SUM(cv.payout), 0) > 0
-            ORDER BY (COALESCE(SUM(cv.payout), 0) - COALESCE(SUM(c.cost), 0)) DESC, COUNT(c.id) DESC
         ";
+        $stmt = $pdo->prepare($sqlClicks);
+        $stmt->execute($bounds);
+        $clickRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        $stmt = db()->prepare($sql);
-        $stmt->execute([
-            ':start' => $start . ' 00:00:00',
-            ':end' => $end . ' 23:59:59',
-        ]);
-        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $sqlConv = "
+            SELECT
+                aa.id AS affiliate_id,
+                COALESCE(aa.affiliate_program, 'Unassigned') AS affiliate_name,
+                COUNT(cv.id) AS conversions,
+                SUM(CASE WHEN cv.status = 1 THEN 1 ELSE 0 END) AS open_count,
+                SUM(CASE WHEN cv.status = 2 THEN 1 ELSE 0 END) AS confirmed_count,
+                SUM(CASE WHEN cv.status = 4 THEN 1 ELSE 0 END) AS paid_count,
+                SUM(CASE WHEN cv.status = 3 THEN 1 ELSE 0 END) AS rejected_count,
+                COALESCE(SUM(CASE WHEN cv.status IN (1,2,3,4) THEN cv.revenue ELSE 0 END), 0) AS revenue_total,
+                COALESCE(SUM(CASE WHEN cv.status != 3 THEN cv.revenue ELSE 0 END), 0) AS revenue_for_roi
+            FROM conversions cv
+            INNER JOIN clicks c ON c.id = cv.click_id
+            LEFT JOIN offers o ON o.id = c.offer_id
+            LEFT JOIN affiliate_accounts aa ON aa.id = o.affiliate_program_id
+            WHERE c.created_at >= :start AND c.created_at <= :end
+              AND cv.status IN (1,2,3,4)
+            GROUP BY aa.id, aa.affiliate_program
+        ";
+        $stmt = $pdo->prepare($sqlConv);
+        $stmt->execute($bounds);
+        $convRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        foreach ($rows as &$r) {
-            $cost = (float) ($r['cost'] ?? 0);
-            $revenue = (float) ($r['revenue'] ?? 0);
-            $clicks = (int) ($r['clicks'] ?? 0);
-            $conversions = (int) ($r['conversions'] ?? 0);
-            $r['profit'] = $revenue - $cost;
-            $r['cr'] = $clicks > 0 ? ($conversions / $clicks) * 100.0 : 0.0;
-            $r['roi'] = $cost > 0 ? (($revenue - $cost) / $cost) * 100.0 : null;
+        $merged = [];
+
+        $affiliateKey = static function (array $r): string {
+            $idRaw = $r['affiliate_id'] ?? null;
+            if ($idRaw !== null && $idRaw !== '') {
+                return 'i' . (int) $idRaw;
+            }
+
+            return 'u';
+        };
+
+        foreach ($clickRows as $r) {
+            $key = $affiliateKey($r);
+            $idRaw = $r['affiliate_id'] ?? null;
+            $merged[$key] = [
+                'affiliate_id' => ($idRaw !== null && $idRaw !== '') ? (int) $idRaw : null,
+                'affiliate_name' => (string) ($r['affiliate_name'] ?? 'Unassigned'),
+                'clicks' => (int) ($r['clicks'] ?? 0),
+                'conversions' => 0,
+                'open_count' => 0,
+                'confirmed_count' => 0,
+                'paid_count' => 0,
+                'rejected_count' => 0,
+                'cost' => (float) ($r['cost'] ?? 0),
+                'revenue' => 0.0,
+                'revenue_for_roi' => 0.0,
+            ];
         }
-        unset($r);
+
+        foreach ($convRows as $r) {
+            $key = $affiliateKey($r);
+            $idRaw = $r['affiliate_id'] ?? null;
+            if (!isset($merged[$key])) {
+                $merged[$key] = [
+                    'affiliate_id' => ($idRaw !== null && $idRaw !== '') ? (int) $idRaw : null,
+                    'affiliate_name' => (string) ($r['affiliate_name'] ?? 'Unassigned'),
+                    'clicks' => 0,
+                    'conversions' => 0,
+                    'open_count' => 0,
+                    'confirmed_count' => 0,
+                    'paid_count' => 0,
+                    'rejected_count' => 0,
+                    'cost' => 0.0,
+                    'revenue' => 0.0,
+                    'revenue_for_roi' => 0.0,
+                ];
+            }
+            $merged[$key]['conversions'] = (int) ($r['conversions'] ?? 0);
+            $merged[$key]['open_count'] = (int) ($r['open_count'] ?? 0);
+            $merged[$key]['confirmed_count'] = (int) ($r['confirmed_count'] ?? 0);
+            $merged[$key]['paid_count'] = (int) ($r['paid_count'] ?? 0);
+            $merged[$key]['rejected_count'] = (int) ($r['rejected_count'] ?? 0);
+            $merged[$key]['revenue'] = (float) ($r['revenue_total'] ?? 0);
+            $merged[$key]['revenue_for_roi'] = (float) ($r['revenue_for_roi'] ?? 0);
+        }
+
+        $rows = [];
+        foreach ($merged as $row) {
+            $clicks = (int) $row['clicks'];
+            $conversions = (int) $row['conversions'];
+            $cost = (float) $row['cost'];
+            $revenueTotal = (float) $row['revenue'];
+            $revenueForRoi = (float) $row['revenue_for_roi'];
+            if ($clicks === 0 && $conversions === 0 && $cost <= 0.0 && $revenueTotal <= 0.0) {
+                continue;
+            }
+            $row['profit'] = $revenueForRoi - $cost;
+            $row['cr'] = ConversionMetrics::conversionRate($clicks, $conversions) ?? 0.0;
+            $row['roi'] = ConversionMetrics::roiPercent($cost, $revenueForRoi);
+            $row['rejection_rate'] = ConversionMetrics::rejectionRate(
+                (int) $row['open_count'],
+                (int) $row['confirmed_count'],
+                (int) $row['paid_count'],
+                (int) $row['rejected_count']
+            );
+            unset($row['open_count'], $row['confirmed_count'], $row['paid_count'], $row['rejected_count'], $row['revenue_for_roi']);
+            $rows[] = $row;
+        }
+
+        usort($rows, static function (array $a, array $b): int {
+            $pa = (float) $a['profit'];
+            $pb = (float) $b['profit'];
+            if ($pb <=> $pa) {
+                return $pb <=> $pa;
+            }
+
+            return (int) $b['clicks'] <=> (int) $a['clicks'];
+        });
 
         return $rows;
     }
@@ -218,44 +363,119 @@ class ModelDashboard
         $tz = new DateTimeZone(date_default_timezone_get());
         $end = new DateTime('today', $tz);
         $start = (clone $end)->modify('-6 days');
+        $startStr = $start->format('Y-m-d');
+        $endStr = $end->format('Y-m-d');
+        $bounds = self::dateBounds($startStr, $endStr);
+        $pdo = db();
 
-        $sql = "
+        $sqlClicks = "
             SELECT
                 o.id AS offer_id,
                 o.name AS offer_name,
                 COUNT(c.id) AS clicks,
-                SUM(CASE WHEN cv.status IN " . self::CONV_STATUSES . " THEN 1 ELSE 0 END) AS conversions,
-                COALESCE(SUM(c.cost), 0) AS cost,
-                COALESCE(SUM(cv.payout), 0) AS revenue
+                COALESCE(SUM(c.cost), 0) AS cost
             FROM clicks c
-            LEFT JOIN conversions cv ON cv.click_internal_id = c.id
             INNER JOIN offers o ON o.id = c.offer_id
             WHERE c.created_at >= :start AND c.created_at <= :end
             GROUP BY o.id, o.name
             HAVING COUNT(c.id) > 0
         ";
+        $stmt = $pdo->prepare($sqlClicks);
+        $stmt->execute($bounds);
+        $clickRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        $stmt = db()->prepare($sql);
-        $stmt->execute([
-            ':start' => $start->format('Y-m-d') . ' 00:00:00',
-            ':end' => $end->format('Y-m-d') . ' 23:59:59',
-        ]);
-        $raw = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $sqlConv = "
+            SELECT
+                o.id AS offer_id,
+                o.name AS offer_name,
+                COUNT(cv.id) AS conversions,
+                SUM(CASE WHEN cv.status = 1 THEN 1 ELSE 0 END) AS open_count,
+                SUM(CASE WHEN cv.status = 2 THEN 1 ELSE 0 END) AS confirmed_count,
+                SUM(CASE WHEN cv.status = 4 THEN 1 ELSE 0 END) AS paid_count,
+                SUM(CASE WHEN cv.status = 3 THEN 1 ELSE 0 END) AS rejected_count,
+                COALESCE(SUM(CASE WHEN cv.status IN (1,2,3,4) THEN cv.revenue ELSE 0 END), 0) AS revenue_total,
+                COALESCE(SUM(CASE WHEN cv.status != 3 THEN cv.revenue ELSE 0 END), 0) AS revenue_for_roi
+            FROM conversions cv
+            INNER JOIN clicks c ON c.id = cv.click_id
+            INNER JOIN offers o ON o.id = c.offer_id
+            WHERE c.created_at >= :start AND c.created_at <= :end
+              AND cv.status IN (1,2,3,4)
+            GROUP BY o.id, o.name
+        ";
+        $stmt = $pdo->prepare($sqlConv);
+        $stmt->execute($bounds);
+        $convRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $byOffer = [];
+        foreach ($clickRows as $r) {
+            $oid = (int) $r['offer_id'];
+            $byOffer[$oid] = [
+                'offer_id' => $oid,
+                'offer_name' => (string) $r['offer_name'],
+                'clicks' => (int) $r['clicks'],
+                'conversions' => 0,
+                'open_count' => 0,
+                'confirmed_count' => 0,
+                'paid_count' => 0,
+                'rejected_count' => 0,
+                'cost' => (float) ($r['cost'] ?? 0),
+                'revenue_total' => 0.0,
+                'revenue_for_roi' => 0.0,
+            ];
+        }
+        foreach ($convRows as $r) {
+            $oid = (int) $r['offer_id'];
+            if (!isset($byOffer[$oid])) {
+                $byOffer[$oid] = [
+                    'offer_id' => $oid,
+                    'offer_name' => (string) $r['offer_name'],
+                    'clicks' => 0,
+                    'conversions' => 0,
+                    'open_count' => 0,
+                    'confirmed_count' => 0,
+                    'paid_count' => 0,
+                    'rejected_count' => 0,
+                    'cost' => 0.0,
+                    'revenue_total' => 0.0,
+                    'revenue_for_roi' => 0.0,
+                ];
+            }
+            $byOffer[$oid]['conversions'] = (int) ($r['conversions'] ?? 0);
+            $byOffer[$oid]['open_count'] = (int) ($r['open_count'] ?? 0);
+            $byOffer[$oid]['confirmed_count'] = (int) ($r['confirmed_count'] ?? 0);
+            $byOffer[$oid]['paid_count'] = (int) ($r['paid_count'] ?? 0);
+            $byOffer[$oid]['rejected_count'] = (int) ($r['rejected_count'] ?? 0);
+            $byOffer[$oid]['revenue_total'] = (float) ($r['revenue_total'] ?? 0);
+            $byOffer[$oid]['revenue_for_roi'] = (float) ($r['revenue_for_roi'] ?? 0);
+        }
 
         $enriched = [];
-        foreach ($raw as $r) {
-            $cost = (float) ($r['cost'] ?? 0);
-            $revenue = (float) ($r['revenue'] ?? 0);
-            $clicks = (int) ($r['clicks'] ?? 0);
-            $conversions = (int) ($r['conversions'] ?? 0);
-            $profit = $revenue - $cost;
-            $cr = $clicks > 0 ? ($conversions / $clicks) * 100.0 : 0.0;
-            $roi = $cost > 0 ? (($revenue - $cost) / $cost) * 100.0 : null;
-            $enriched[] = array_merge($r, [
+        foreach ($byOffer as $o) {
+            $cost = (float) $o['cost'];
+            $revenueForRoi = (float) $o['revenue_for_roi'];
+            $clicks = (int) $o['clicks'];
+            $conversions = (int) $o['conversions'];
+            $profit = $revenueForRoi - $cost;
+            $cr = ConversionMetrics::conversionRate($clicks, $conversions) ?? 0.0;
+            $roi = ConversionMetrics::roiPercent($cost, $revenueForRoi);
+            $rejectionRate = ConversionMetrics::rejectionRate(
+                (int) $o['open_count'],
+                (int) $o['confirmed_count'],
+                (int) $o['paid_count'],
+                (int) $o['rejected_count']
+            );
+            $enriched[] = [
+                'offer_id' => (int) $o['offer_id'],
+                'offer_name' => (string) $o['offer_name'],
+                'clicks' => $clicks,
+                'conversions' => $conversions,
+                'cost' => $cost,
+                'revenue' => (float) $o['revenue_total'],
                 'profit' => $profit,
                 'cr' => $cr,
                 'roi' => $roi,
-            ]);
+                'rejection_rate' => $rejectionRate,
+            ];
         }
 
         $byRoi = $enriched;
@@ -271,6 +491,7 @@ class ModelDashboard
             if ($rb === null) {
                 return -1;
             }
+
             return $rb <=> $ra;
         });
         $byRoi = array_slice($byRoi, 0, $limit);

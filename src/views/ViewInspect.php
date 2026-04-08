@@ -102,25 +102,46 @@ $fmtDt = static function (?string $sqlDt): string {
         <?php endif; ?>
 
         <section class="dash-section" aria-labelledby="inspect-periods-heading">
-            <h2 id="inspect-periods-heading" class="dash-section__title">Performance by period</h2>
+            <h2 id="inspect-periods-heading" class="dash-section__title">Lifetime vs last 30 days</h2>
             <p class="dash-section__lede">
-                Lifetime uses <?= htmlspecialchars((string) ($rangeLifetime['start'] ?? ''), ENT_QUOTES, 'UTF-8') ?>–<?= htmlspecialchars((string) ($rangeLifetime['end'] ?? ''), ENT_QUOTES, 'UTF-8') ?>.
-                Last 7 / 30 days align with the dashboard presets (including today).
+                Lifetime: <?= htmlspecialchars((string) ($rangeLifetime['start'] ?? ''), ENT_QUOTES, 'UTF-8') ?>–<?= htmlspecialchars((string) ($rangeLifetime['end'] ?? ''), ENT_QUOTES, 'UTF-8') ?>.
+                Last 30 days matches the dashboard preset (including today).
+                Campaign table below still shows 7-day and 30-day click counts.
             </p>
 
-            <div class="inspect-period-grid">
-                <?php
-                $periods = [
-                    ['label' => 'Lifetime', 'stats' => $statsLifetime, 'key' => 'life'],
-                    ['label' => 'Last 7 days', 'stats' => $stats7, 'key' => '7d'],
-                    ['label' => 'Last 30 days', 'stats' => $stats30, 'key' => '30d'],
-                ];
-                ?>
-                <?php foreach ($periods as $block): ?>
-                    <?php $s = $block['stats']; ?>
-                    <div class="inspect-period-card" data-period="<?= htmlspecialchars($block['key'], ENT_QUOTES, 'UTF-8') ?>">
-                        <h3 class="inspect-period-card__title"><?= htmlspecialchars($block['label'], ENT_QUOTES, 'UTF-8') ?></h3>
-                        <div class="kpi-grid">
+            <?php
+            $inspectCompare = [
+                [
+                    'label' => 'Lifetime',
+                    'key' => 'life',
+                    'stats' => $statsLifetime,
+                    'range' => $rangeLifetime,
+                ],
+                [
+                    'label' => 'Last 30 days',
+                    'key' => '30d',
+                    'stats' => $stats30,
+                    'range' => $range30,
+                ],
+            ];
+            ?>
+            <div class="inspect-compare-grid">
+                <?php foreach ($inspectCompare as $block): ?>
+                    <?php
+                    $s = $block['stats'];
+                    if (!is_array($s)) {
+                        continue;
+                    }
+                    ?>
+                    <div class="inspect-compare-col" data-period="<?= htmlspecialchars($block['key'], ENT_QUOTES, 'UTF-8') ?>">
+                        <h3 class="inspect-compare-col__title"><?= htmlspecialchars($block['label'], ENT_QUOTES, 'UTF-8') ?></h3>
+                        <p class="inspect-compare-col__range">
+                            <?= htmlspecialchars((string) ($block['range']['start'] ?? ''), ENT_QUOTES, 'UTF-8') ?>
+                            –
+                            <?= htmlspecialchars((string) ($block['range']['end'] ?? ''), ENT_QUOTES, 'UTF-8') ?>
+                        </p>
+
+                        <div class="kpi-grid inspect-compare-kpis">
                             <article class="kpi-card kpi-card--accent">
                                 <span class="kpi-card__label">Clicks</span>
                                 <span class="kpi-card__value"><?= $fmtInt((int) ($s['total_clicks'] ?? 0)) ?></span>
@@ -132,74 +153,78 @@ $fmtDt = static function (?string $sqlDt): string {
                             <article class="kpi-card">
                                 <span class="kpi-card__label">Conv. rate</span>
                                 <span class="kpi-card__value"><?= $fmtPct($s['cr'] !== null ? (float) $s['cr'] : null) ?></span>
+                                <span class="kpi-card__hint">Commission rows ÷ clicks (all statuses)</span>
                             </article>
                             <article class="kpi-card">
                                 <span class="kpi-card__label">Rejection rate</span>
                                 <span class="kpi-card__value"><?= $fmtPct($s['rejection_rate'] !== null ? (float) $s['rejection_rate'] : null) ?></span>
-                                <span class="kpi-card__hint">Rejected ÷ all conversion events</span>
+                                <span class="kpi-card__hint">No confirmed/paid: R÷(O+R). Else: R÷(O+C+P+R).</span>
                             </article>
                             <article class="kpi-card kpi-card--profit">
                                 <span class="kpi-card__label">ROI</span>
                                 <span class="kpi-card__value"><?= $fmtPct($s['roi'] !== null ? (float) $s['roi'] : null) ?></span>
+                                <span class="kpi-card__hint">Excludes rejected revenue</span>
                             </article>
                             <article class="kpi-card">
-                                <span class="kpi-card__label">EPC (payout / click)</span>
+                                <span class="kpi-card__label">EPC</span>
                                 <span class="kpi-card__value"><?= $s['epc'] !== null ? $fmtMoney((float) $s['epc']) : '—' ?></span>
+                                <span class="kpi-card__hint">ROI revenue ÷ click</span>
                             </article>
                             <article class="kpi-card">
                                 <span class="kpi-card__label">Cost</span>
                                 <span class="kpi-card__value"><?= $fmtMoney((float) ($s['cost'] ?? 0)) ?></span>
                             </article>
                             <article class="kpi-card">
-                                <span class="kpi-card__label">Revenue (all statuses)</span>
+                                <span class="kpi-card__label">Revenue (all)</span>
                                 <span class="kpi-card__value"><?= $fmtMoney((float) ($s['revenue'] ?? 0)) ?></span>
+                            </article>
+                            <article class="kpi-card">
+                                <span class="kpi-card__label">Revenue (ROI)</span>
+                                <span class="kpi-card__value"><?= $fmtMoney((float) ($s['revenue_for_roi'] ?? 0)) ?></span>
+                                <span class="kpi-card__hint">Excludes rejected</span>
                             </article>
                             <article class="kpi-card kpi-card--profit">
                                 <span class="kpi-card__label">Profit</span>
                                 <span class="kpi-card__value"><?= $fmtMoney((float) ($s['profit'] ?? 0)) ?></span>
                             </article>
                         </div>
+
+                        <h4 class="inspect-compare-status-heading">By status</h4>
+                        <p class="inspect-compare-status-lede">Count and revenue sum (click date in range).</p>
+                        <div class="status-grid">
+                            <article class="status-card">
+                                <h3 class="status-card__title">Open</h3>
+                                <dl class="status-card__stats">
+                                    <div><dt>Count</dt><dd><?= $fmtInt((int) ($s['open_count'] ?? 0)) ?></dd></div>
+                                    <div><dt>Sum</dt><dd><?= $fmtMoney((float) ($s['open_sum'] ?? 0)) ?></dd></div>
+                                </dl>
+                            </article>
+                            <article class="status-card">
+                                <h3 class="status-card__title">Confirmed</h3>
+                                <dl class="status-card__stats">
+                                    <div><dt>Count</dt><dd><?= $fmtInt((int) ($s['confirmed_count'] ?? 0)) ?></dd></div>
+                                    <div><dt>Sum</dt><dd><?= $fmtMoney((float) ($s['confirmed_sum'] ?? 0)) ?></dd></div>
+                                </dl>
+                            </article>
+                            <article class="status-card">
+                                <h3 class="status-card__title">Paid</h3>
+                                <dl class="status-card__stats">
+                                    <div><dt>Count</dt><dd><?= $fmtInt((int) ($s['paid_count'] ?? 0)) ?></dd></div>
+                                    <div><dt>Sum</dt><dd><?= $fmtMoney((float) ($s['paid_sum'] ?? 0)) ?></dd></div>
+                                </dl>
+                            </article>
+                            <article class="status-card status-card--muted">
+                                <h3 class="status-card__title">Rejected</h3>
+                                <dl class="status-card__stats">
+                                    <div><dt>Count</dt><dd><?= $fmtInt((int) ($s['rejected_count'] ?? 0)) ?></dd></div>
+                                    <div><dt>Sum</dt><dd><?= $fmtMoney((float) ($s['rejected_sum'] ?? 0)) ?></dd></div>
+                                </dl>
+                            </article>
+                        </div>
                     </div>
                 <?php endforeach; ?>
             </div>
         </section>
-
-        <?php if ($statsLifetime !== null): ?>
-            <section class="dash-section" aria-labelledby="inspect-lifetime-status-heading">
-                <h2 id="inspect-lifetime-status-heading" class="dash-section__title">Lifetime conversion breakdown</h2>
-                <p class="dash-section__lede">Counts and payout sums for this offer (same window as lifetime KPIs above).</p>
-                <div class="status-grid">
-                    <article class="status-card">
-                        <h3 class="status-card__title">Open</h3>
-                        <dl class="status-card__stats">
-                            <div><dt>Count</dt><dd><?= $fmtInt((int) ($statsLifetime['open_count'] ?? 0)) ?></dd></div>
-                            <div><dt>Sum</dt><dd><?= $fmtMoney((float) ($statsLifetime['open_sum'] ?? 0)) ?></dd></div>
-                        </dl>
-                    </article>
-                    <article class="status-card">
-                        <h3 class="status-card__title">Confirmed</h3>
-                        <dl class="status-card__stats">
-                            <div><dt>Count</dt><dd><?= $fmtInt((int) ($statsLifetime['confirmed_count'] ?? 0)) ?></dd></div>
-                            <div><dt>Sum</dt><dd><?= $fmtMoney((float) ($statsLifetime['confirmed_sum'] ?? 0)) ?></dd></div>
-                        </dl>
-                    </article>
-                    <article class="status-card">
-                        <h3 class="status-card__title">Paid</h3>
-                        <dl class="status-card__stats">
-                            <div><dt>Count</dt><dd><?= $fmtInt((int) ($statsLifetime['paid_count'] ?? 0)) ?></dd></div>
-                            <div><dt>Sum</dt><dd><?= $fmtMoney((float) ($statsLifetime['paid_sum'] ?? 0)) ?></dd></div>
-                        </dl>
-                    </article>
-                    <article class="status-card status-card--muted">
-                        <h3 class="status-card__title">Rejected</h3>
-                        <dl class="status-card__stats">
-                            <div><dt>Count</dt><dd><?= $fmtInt((int) ($statsLifetime['rejected_count'] ?? 0)) ?></dd></div>
-                            <div><dt>Sum</dt><dd><?= $fmtMoney((float) ($statsLifetime['rejected_sum'] ?? 0)) ?></dd></div>
-                        </dl>
-                    </article>
-                </div>
-            </section>
-        <?php endif; ?>
 
         <section class="dash-section" aria-labelledby="inspect-geo-heading">
             <h2 id="inspect-geo-heading" class="dash-section__title">Top countries by clicks</h2>

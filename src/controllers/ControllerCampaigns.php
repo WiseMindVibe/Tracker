@@ -167,33 +167,31 @@ class ControllerCampaigns extends ControllerBase
     public function GenerateTrackingURL(array $campaign): string
     {
         $base_url = getenv('BASE_URL') ?: 'MISSING ENV';
-        $tracking_url = rtrim($base_url, '/') . "/public/redirect.php?camid=" . rawurlencode($campaign['uuid'] ?? '');
+        $tracking_url = rtrim($base_url, '/') . "/public/redirect.php?uuid=" . rawurlencode($campaign['uuid'] ?? '');
         $traffic = strtolower(trim((string) ($campaign['traffic'] ?? '')));
 
         switch ($traffic) {
             case 'propellerads':
-                $tracking_url .= '&clickid=${SUBID}'
-                    . '&campaignid={campaign_id}'
-                    . '&country={country}'
-                    . '&os={os}'
-                    . '&browser={browser}'
-                    . '&connection_type={connection_type}'
-                    . '&isp={isp}'
-                    . '&zoneid={zoneid}'
-                    . '&subzone_id={subzone_id}'
-                    . '&region={region}'
-                    . '&osversion={osversion}'
-                    . '&device={device}'
-                    . '&browser_version={browser_version}'
-                    . '&carrier={carrier}'
-                    . '&cost={cost}'
-                    . '&useragent={useragent}'
-                    . '&user_activity={user_activity}'
-                    . '&bannerid={bannerid}'
-                    . '&language={language}'
-                    . '&payout={payout}'
-                    . '&zone_type={zone_type}';
-                break;
+                $tracking_url .= '&SUB_ID=${SUBID}'
+                . '&campaign_id={campaign_id}'
+                . '&country={country}'
+                . '&region={region}'
+                . '&language={language}'
+                . '&device={device}'
+                . '&os={os}'
+                . '&os_version={osversion}'
+                . '&browser={browser}'
+                . '&browser_version={browser_version}'
+                . '&connection_type={connection_type}'
+                . '&carrier={carrier}'
+                . '&isp={isp}'
+                . '&zoneid={zoneid}'
+                . '&subzone_id={subzone_id}'
+                . '&cost={cost}'
+                . '&useragent={useragent}'
+                . '&user_activity={user_activity}'
+                ;
+            break;
             case 'hilltop':
                 $tracking_url .= '&geo={{geo}}&zoneid={{zoneid}}&adid={{adid}}&campaignid={{campaignid}}&category={{category}}&cpmbid={{cpmbid}}&price={{price}}&browsername={{browsername}}&appname={{appname}}';
                 break;

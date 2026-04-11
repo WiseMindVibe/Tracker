@@ -86,6 +86,12 @@ body {
     color: var(--notif-muted);
 }
 
+.notifications-subtitle--source {
+    margin-top: 0.5rem;
+    font-size: 0.8rem;
+    max-width: none;
+}
+
 .notifications-toolbar {
     display: flex;
     flex-wrap: wrap;
@@ -276,6 +282,13 @@ body {
     max-width: 12rem;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.notif-cell--time {
+    white-space: nowrap;
+    font-family: ui-monospace, "Cascadia Code", "Segoe UI Mono", monospace;
+    font-size: 0.78rem;
+    color: var(--notif-muted);
 }
 
 .notif-revenue {

@@ -167,7 +167,7 @@ class ControllerCampaigns extends ControllerBase
     public function GenerateTrackingURL(array $campaign): string
     {
         $base_url = getenv('BASE_URL') ?: 'MISSING ENV';
-        $tracking_url = rtrim($base_url, '/') . "/public/redirect.php?uuid=" . rawurlencode($campaign['uuid'] ?? '');
+        $tracking_url = 'https://' . rtrim($base_url, '/') . "/public/redirect.php?uuid=" . rawurlencode($campaign['uuid'] ?? '');
         $traffic = strtolower(trim((string) ($campaign['traffic'] ?? '')));
 
         switch ($traffic) {

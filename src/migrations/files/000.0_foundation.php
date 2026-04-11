@@ -101,8 +101,8 @@ return [
             `external_campaign_id` varchar(255) NOT NULL,
             `traffic_source_id` int(11) NOT NULL,
 
-            INDEX idx_campaign_id (campaign_id),
-            INDEX idx_traffic_source_id (traffic_source_id),
+            INDEX campaign_id (campaign_id),
+            INDEX fx_traffic_source (traffic_source_id),
 
             CONSTRAINT campaign_external_ids_ibfk_1 FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
             CONSTRAINT fx_traffic_source FOREIGN KEY (traffic_source_id) REFERENCES traffic_sources(id) ON DELETE CASCADE

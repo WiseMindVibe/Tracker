@@ -45,12 +45,14 @@ if ($debug) {
         }
     }
 } else {
+    /*
     foreach ($params as $name => $value) {
         if ($value === null) {
             //SEND TO POSTBACK LOG
             exit("ERROR - MISSING PARAMETERS");
         }
     }
+        */
 }
 
 //DATABASE OPERATIONS
@@ -144,11 +146,10 @@ try {
         status,
         event_type,
         event_id,
-        click_created_at,
-        click_updated_at,
         is_read,
         read_at,
-        created_at,
+        sale_date,
+        modified_date
         )
 
         VALUES (:click_id,
@@ -159,11 +160,9 @@ try {
         :status,
         :event_type,
         :event_id,
-        NOW(), -- click created time -> now
-        :sale_date,
         :is_read,
-        :advertiser_id,
-        :sales_amount,
+        :read_at,
+        :sale_date,
         :modified_date
         )
     ");
@@ -178,13 +177,11 @@ try {
         ':affiliate_id' => $clickDetails['affiliate_id'], //affiliate id from click_id
         ':revenue' => $params['commission'],
         ':status' => $params['status'],
-        //click created at
         ':event_type' => $params['event_type'],
         ':event_id' => $params['event_id'],
-        ':sale_date' => $params['sale_date'],
         ':is_read' => 0,
-        ':advertiser_id' => $params['advertiser_id'],
-        ':sales_amount' => $params['sale_amount'],
+        ':read_at' => null,
+        ':sale_date' => $params['sale_date'],
         ':modified_date' => $params['modified_date']
     ]);
 
@@ -218,3 +215,5 @@ try {
     }
 }
 
+echo "SUCCESS";
+exit();

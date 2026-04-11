@@ -1,17 +1,25 @@
 <?php
 require_once __DIR__ . '/../../src/bootstrap.php';
 
-$apiKey = $_GET['API_KEY'] ?? null;
-if($apiKey !== '1234567890' ){
+header('Content-Type: application/json');
+
+$apiKey = (string) ($_GET['API_KEY'] ?? '');
+if (!hash_equals('1234567890', $apiKey)) {
     http_response_code(401);
-    echo json_encode(['error' => 'Unauthorized']);
+    echo json_encode([
+        'success' => false,
+        'error' => 'Unauthorized',
+    ]);
     exit;
 }
 
-$clickId = $_GET['click_id'] ?? null;
-if(!$clickId){
+$clickId = trim((string) ($_GET['click_id'] ?? ''));
+if ($clickId === '') {
     http_response_code(400);
-    echo json_encode(['error' => 'Click ID is required']);
+    echo json_encode([
+        'success' => false,
+        'error' => 'Click ID is required',
+    ]);
     exit;
 }
 
@@ -20,8 +28,18 @@ $stmt = $db->prepare("SELECT * FROM click_redirections WHERE click_id = :click_i
 $stmt->execute(['click_id' => $clickId]);
 $clickRedirectionData = $stmt->fetch(PDO::FETCH_ASSOC);
 
+if ($clickRedirectionData === false) {
+    http_response_code(404);
+    echo json_encode([
+        'success' => false,
+        'error' => 'Click not found',
+        'clickRedirectionData' => null,
+    ]);
+    exit;
+}
+
 echo json_encode([
     'success' => true,
-    'clickRedirectionData' => $clickRedirectionData
+    'clickRedirectionData' => $clickRedirectionData,
 ]);
 exit;

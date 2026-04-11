@@ -7,6 +7,7 @@
  * @var int $totalPages
  * @var string $q
  * @var list<int> $allowedPerPage
+ * @var string $activeSource
  */
 
 /**
@@ -37,6 +38,25 @@ $statusClassMap = [
     'rejected' => 'notif-status--rejected',
     'delayed' => 'notif-status--delayed',
 ];
+
+$sourceHelp = match ($activeSource ?? 'none') {
+    'conversions' => 'Source: conversions table (current reporting pipeline).',
+    'notifications' => 'Source: legacy notifications table (compatibility mode).',
+    default => 'No compatible source found yet. Run migrations and verify postback ingestion.',
+};
+
+$formatSortTs = static function ($raw): string {
+    $str = trim((string) ($raw ?? ''));
+    if ($str === '') {
+        return '—';
+    }
+    $ts = strtotime($str);
+    if ($ts === false) {
+        return '—';
+    }
+
+    return date('Y-m-d H:i:s', $ts);
+};
 ?>
 
 <link rel="stylesheet" href="./src/assets/css/notifications.css">
@@ -46,8 +66,9 @@ $statusClassMap = [
         <div class="notifications-header__titles">
             <h1 class="notifications-title">Notifications</h1>
             <p class="notifications-subtitle">
-                Conversion feed from postbacks — search by click ID, commission id, offer, campaign, or affiliate. Newest first.
+                Conversion feed aligned with your current reporting flow — search by click ID, commission id, offer, campaign, or affiliate.
             </p>
+            <p class="notifications-subtitle notifications-subtitle--source"><?= htmlspecialchars($sourceHelp, ENT_QUOTES, 'UTF-8') ?></p>
         </div>
 
         <form class="notifications-toolbar" method="get" action="index.php" role="search">
@@ -99,6 +120,7 @@ $statusClassMap = [
                     <tr>
                         <th scope="col">Click ID</th>
                         <th scope="col">Event</th>
+                        <th scope="col">When</th>
                         <th scope="col">Offer</th>
                         <th scope="col">Campaign</th>
                         <th scope="col">Affiliate</th>
@@ -111,8 +133,10 @@ $statusClassMap = [
                 <tbody>
                     <?php if (count($notifications) === 0): ?>
                         <tr>
-                            <td class="notif-table__empty" colspan="9">
-                                <?php if ($q !== ''): ?>
+                            <td class="notif-table__empty" colspan="10">
+                                <?php if (($activeSource ?? 'none') === 'none'): ?>
+                                    Notification source is not configured yet.
+                                <?php elseif ($q !== ''): ?>
                                     No conversions match your search.
                                 <?php else: ?>
                                     No conversions yet.
@@ -122,21 +146,35 @@ $statusClassMap = [
                     <?php else: ?>
                         <?php foreach ($notifications as $n): ?>
                             <?php
-                            $status = strtolower((string) ($n['status'] ?? ''));
+                            $status = strtolower(trim((string) ($n['status'] ?? 'unknown')));
+                            if ($status === '') {
+                                $status = 'unknown';
+                            }
                             $statusClass = $statusClassMap[$status] ?? 'notif-status--unknown';
+                            $statusLabel = strtoupper($status);
+                            $eventType = trim((string) ($n['event_type'] ?? ''));
+                            $eventLabel = $eventType === '' || $eventType === '—' ? '—' : strtoupper($eventType);
+                            $commissionId = trim((string) ($n['commission_id'] ?? ''));
+                            if ($commissionId === '') {
+                                $commissionId = trim((string) ($n['external_event_id'] ?? ''));
+                            }
+                            if ($commissionId === '') {
+                                $commissionId = '—';
+                            }
                             ?>
                             <tr class="<?= !empty($n['is_read']) ? '' : 'notif-row--unread' ?>">
                                 <td class="notif-cell--mono"><?= htmlspecialchars((string) ($n['public_click_id'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
-                                <td><?= htmlspecialchars((string) ($n['event_type'] ?? '—'), ENT_QUOTES, 'UTF-8') ?></td>
+                                <td><?= htmlspecialchars($eventLabel, ENT_QUOTES, 'UTF-8') ?></td>
+                                <td class="notif-cell--time"><?= htmlspecialchars($formatSortTs($n['sort_ts'] ?? null), ENT_QUOTES, 'UTF-8') ?></td>
                                 <td><?= htmlspecialchars((string) ($n['offer_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
                                 <td><?= htmlspecialchars((string) ($n['campaign_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
                                 <td><?= htmlspecialchars((string) ($n['affiliate_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
                                 <td>
                                     <span class="notif-status <?= htmlspecialchars($statusClass, ENT_QUOTES, 'UTF-8') ?>">
-                                        <?= htmlspecialchars(strtoupper($status), ENT_QUOTES, 'UTF-8') ?>
+                                        <?= htmlspecialchars($statusLabel, ENT_QUOTES, 'UTF-8') ?>
                                     </span>
                                 </td>
-                                <td class="notif-cell--mono"><?= htmlspecialchars((string) ($n['commission_id'] ?? '—'), ENT_QUOTES, 'UTF-8') ?></td>
+                                <td class="notif-cell--mono"><?= htmlspecialchars($commissionId, ENT_QUOTES, 'UTF-8') ?></td>
                                 <td class="notif-table__num notif-revenue"><?= number_format((float) ($n['revenue'] ?? 0), 2) ?> <?= htmlspecialchars((string) ($n['currency'] ?? 'EUR'), ENT_QUOTES, 'UTF-8') ?></td>
                                 <td class="notif-table__num"><?php
                                     $sa = $n['sales_amount'] ?? null;

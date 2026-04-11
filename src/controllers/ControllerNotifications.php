@@ -5,7 +5,7 @@ class ControllerNotifications
 {
     public function index(): void
     {
-        $perPage = isset($_GET['per']) ? (int) $_GET['per'] : 25;
+        $perPage = isset($_GET['per']) ? (int) $_GET['per'] : 100;
         $perPage = ModelNotifications::normalizePerPage($perPage);
 
         $page = isset($_GET['p']) ? max(1, (int) $_GET['p']) : 1;
@@ -26,6 +26,17 @@ class ControllerNotifications
 
         $allowedPerPage = ModelNotifications::allowedPerPage();
 
-        require __DIR__ . "/../views/ViewNotifications.php";
+        $viewData = [
+            'notifications' => $notifications,
+            'total' => $total,
+            'page' => $page,
+            'perPage' => $perPage,
+            'totalPages' => $totalPages,
+            'q' => $q,
+            'allowedPerPage' => $allowedPerPage,
+            'activeSource' => ModelNotifications::activeSource(),
+        ];
+        extract($viewData, EXTR_SKIP);
+        require_once __DIR__ . "/../views/ViewNotifications.php";
     }
 }

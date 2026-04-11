@@ -78,10 +78,6 @@ return [
         ");
 
         $db->exec("ALTER TABLE offers
-            DROP FOREIGN KEY fk_affiliate_program 
-        ");
-
-        $db->exec("ALTER TABLE offers
             DROP COLUMN affiliate_program_id 
         ");
 

@@ -37,8 +37,14 @@ function stopTrafficSourceCampaigns(string $campaignId){
 
     $externalCampaignIds = array_column($externalCampaignIdDetails, 'external_campaign_id');
 
-        
-    switch (strtolower($trafficSourceDetails['traffic_source_name'])) {
+    if (!$trafficSourceDetails || empty($externalCampaignIds)) {
+        return [
+            'success' => false,
+            'error' => 'Missing traffic source details or external campaign ids'
+        ];
+    }
+
+    switch (strtolower((string) $trafficSourceDetails['traffic_source_name'])) {
         case 'propellerads':
             $api_url = "https://ssp-api.propellerads.com/v5/adv/campaigns/stop";
             $payload = [
@@ -74,8 +80,80 @@ function stopTrafficSourceCampaigns(string $campaignId){
                     'data' => json_decode($response, true)
                 ];
             break;
-        case 'hilltops':
-            return true;
+        case 'hilltopads':
+            $results = [];
+            foreach ($externalCampaignIds as $externalCampaignId) {
+                $api_url = "https://api.hilltopads.com/advertiser/stopCampaign?key=" .
+                    urlencode((string) $trafficSourceDetails['api_key']) .
+                    "&campaignId=" . urlencode((string) $externalCampaignId);
+
+                $ch = curl_init();
+                curl_setopt_array($ch, [
+                    CURLOPT_URL => $api_url,
+                    CURLOPT_CUSTOMREQUEST => 'PATCH',
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_TIMEOUT => 30
+                ]);
+
+                $response = curl_exec($ch);
+                $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                $curlError = curl_errno($ch) ? curl_error($ch) : null;
+                curl_close($ch);
+
+                $results[] = [
+                    'external_campaign_id' => $externalCampaignId,
+                    'success' => $curlError === null && $httpCode >= 200 && $httpCode < 300,
+                    'http_code' => $httpCode,
+                    'curl_error' => $curlError,
+                    'response' => $response
+                ];
+            }
+
+            return [
+                'success' => true,
+                'data' => $results
+            ];
+            break;
+        case 'popcash':
+            $results = [];
+            foreach ($externalCampaignIds as $externalCampaignId) {
+                $api_url = "https://api.popcash.net/campaign/" . rawurlencode((string) $externalCampaignId);
+                $payload = [
+                    'status' => 0
+                ];
+
+                $ch = curl_init();
+                curl_setopt_array($ch, [
+                    CURLOPT_URL => $api_url,
+                    CURLOPT_CUSTOMREQUEST => 'PUT',
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_HTTPHEADER => [
+                        'X-Api-Key: ' . $trafficSourceDetails['api_key'],
+                        'Content-Type: application/json',
+                        'Accept: application/json'
+                    ],
+                    CURLOPT_POSTFIELDS => json_encode($payload),
+                    CURLOPT_TIMEOUT => 30
+                ]);
+
+                $response = curl_exec($ch);
+                $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                $curlError = curl_errno($ch) ? curl_error($ch) : null;
+                curl_close($ch);
+
+                $results[] = [
+                    'external_campaign_id' => $externalCampaignId,
+                    'success' => $curlError === null && $httpCode >= 200 && $httpCode < 300,
+                    'http_code' => $httpCode,
+                    'curl_error' => $curlError,
+                    'response' => $response
+                ];
+            }
+
+            return [
+                'success' => true,
+                'data' => $results
+            ];
             break;
         default:
             return false;

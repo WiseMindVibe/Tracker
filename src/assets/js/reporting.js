@@ -13,8 +13,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const fieldLabels = {
         offer_id: 'Offer',
         campaign_id: 'Campaign',
+        external_campaign_id: 'External Campaign ID',
         os: 'OS',
         browser: 'Browser',
+        country: 'Country',
+        region: 'Region',
+        language: 'Language',
+        device: 'Device',
+        os_version: 'OS Version',
+        browser_version: 'Browser Version',
+        connection_type: 'Connection Type',
+        carrier: 'Carrier',
+        isp: 'ISP',
+        zoneid: 'Zone ID',
+        subzone_id: 'Subzone ID',
     };
 
     const presetSelect = document.getElementById('rep-date-preset');

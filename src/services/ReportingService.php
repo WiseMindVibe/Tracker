@@ -5,7 +5,24 @@ require_once __DIR__ . '/../repositories/ReportingRepository.php';
 final class ReportingService
 {
     /** @var list<string> */
-    private const ALLOWED_GROUPS = ['offer', 'campaign', 'os', 'browser'];
+    private const ALLOWED_GROUPS = [
+        'offer',
+        'campaign',
+        'external_campaign_id',
+        'os',
+        'browser',
+        'country',
+        'region',
+        'language',
+        'device',
+        'os_version',
+        'browser_version',
+        'connection_type',
+        'carrier',
+        'isp',
+        'zoneid',
+        'subzone_id',
+    ];
 
     /** @var list<string> */
     private const ALLOWED_DATE_PRESETS = ['today', 'yesterday', 'last7', 'last_week', 'this_week', 'last30', 'this_month', 'last_month', 'this_year', 'last_year', 'all_time'];
@@ -185,7 +202,7 @@ final class ReportingService
     {
         return match ($key) {
             'offer_id', 'campaign_id' => $this->normalizeIntegerFilter($key, $value),
-            'os', 'browser' => $this->normalizeStringFilter($value),
+            'external_campaign_id', 'os', 'browser', 'country', 'region', 'language', 'device', 'os_version', 'browser_version', 'connection_type', 'carrier', 'isp', 'zoneid', 'subzone_id' => $this->normalizeStringFilter($value),
             default => throw new InvalidArgumentException('Unsupported parent filter key: ' . $key),
         };
     }
@@ -320,8 +337,20 @@ final class ReportingService
         return match ($group) {
             'offer' => 'offer_id',
             'campaign' => 'campaign_id',
+            'external_campaign_id' => 'external_campaign_id',
             'os' => 'os',
             'browser' => 'browser',
+            'country' => 'country',
+            'region' => 'region',
+            'language' => 'language',
+            'device' => 'device',
+            'os_version' => 'os_version',
+            'browser_version' => 'browser_version',
+            'connection_type' => 'connection_type',
+            'carrier' => 'carrier',
+            'isp' => 'isp',
+            'zoneid' => 'zoneid',
+            'subzone_id' => 'subzone_id',
             default => throw new InvalidArgumentException('Unsupported group: ' . $group),
         };
     }
@@ -424,7 +453,7 @@ final class ReportingService
     {
         return match ($group) {
             'offer', 'campaign' => $this->normalizeIntegerFilter($this->parentFilterKeyForGroup($group), $value),
-            'os', 'browser' => $this->normalizeStringFilter($value),
+            'external_campaign_id', 'os', 'browser', 'country', 'region', 'language', 'device', 'os_version', 'browser_version', 'connection_type', 'carrier', 'isp', 'zoneid', 'subzone_id' => $this->normalizeStringFilter($value),
             default => throw new InvalidArgumentException('Unsupported group key: ' . $group),
         };
     }

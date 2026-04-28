@@ -54,7 +54,7 @@ $catalogJson = json_encode($offers_list ?? [], JSON_HEX_TAG | JSON_HEX_AMP | JSO
         <label>Tracking URL (live)</label><br>
         <input name="tracking_url" type="url" id="tracking_url" class="field-input" readonly
             placeholder="Pick a traffic source to generate the link"
-            data-base_url="<?= htmlspecialchars(rtrim((string) (getenv('BASE_URL') ?: ''), '/') . '/public/redirect.php?') ?>">
+            data-base_url="https://<?= htmlspecialchars(rtrim((string) (getenv('BASE_URL') ?: ''), '/') . '/public/redirect.php?') ?>">
     </p>
 
     <p>

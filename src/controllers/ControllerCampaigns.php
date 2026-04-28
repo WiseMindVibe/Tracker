@@ -192,9 +192,33 @@ class ControllerCampaigns extends ControllerBase
                 . '&user_activity={user_activity}'
                 ;
             break;
-            case 'hilltop':
-                $tracking_url .= '&geo={{geo}}&zoneid={{zoneid}}&adid={{adid}}&campaignid={{campaignid}}&category={{category}}&cpmbid={{cpmbid}}&price={{price}}&browsername={{browsername}}&appname={{appname}}';
-                break;
+            case 'hilltopads':
+                $tracking_url .= '&SUB_ID={{token}}'
+                . '&campaign_id={{campaignid}}'
+                . '&country={{geo}}'
+                . '&language={{lang}}'
+                . '&os={{appname}}'
+                . '&browser={{browsername}}'
+                . '&zoneid={{zoneid}}'
+                . '&subzone_id={{adid}}'
+                . '&cost={{price}}'
+                . '&category={{category}}'
+                ;
+            break;
+            case 'popcash':
+                $tracking_url .= '&SUB_ID={clickid}'
+                . '&campaign_id={campaignid}'
+                . '&country={cc}'
+                . '&language={language}'
+                . '&device={device}'
+                . '&os={operatingsystem}'
+                . '&browser={browser}'
+                . '&connection_type={connection}'
+                . '&carrier={carrier}'
+                . '&zoneid={siteid}'
+                . '&cost={{bid}}'
+                ;
+            break;
             default:
                 if ($traffic !== '') {
                     $tracking_url .= '&source=' . rawurlencode($traffic);

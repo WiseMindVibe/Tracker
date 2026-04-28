@@ -36,23 +36,25 @@ $params = [
     'sale_amount' => $_GET['SALES_AMOUNT'] ?? null
 ];
 
+$mustParams = ['SUB_ID', 'commission_id', 'commission', 'status'];
+$availableStatuses = ['OPEN', 'CONFIRMED', 'REJECTED', 'PAID'];
+//$availableEventTypes = ['NEW', 'UPDATE'];
+
 if ($debug) {
     foreach ($params as $name => $value) {
-        if ($value !== null) {
+        if (isset($value) && $value !== '' && $value !== null) {
             echo "Parameter " . ($name) . ": " . $value . "<br>";
         } else {
             echo "Parameter " . ($name) . " is missing.<br>";
         }
     }
 } else {
-    /*
-    foreach ($params as $name => $value) {
+    foreach ($mustParams as $name => $value) {
         if ($value === null) {
             //SEND TO POSTBACK LOG
             exit("ERROR - MISSING PARAMETERS");
         }
     }
-        */
 }
 
 //DATABASE OPERATIONS
@@ -60,7 +62,7 @@ $db = db();
 
 //Validate click_id exists
 try {
-    $stmt = $db->prepare("SELECT id FROM clicks WHERE click_id = :click_id");
+    $stmt = $db->prepare("SELECT id, created_at FROM clicks WHERE click_id = :click_id");
     $stmt->execute(['click_id' => $params['SUB_ID']]);
 
     $click = $stmt->fetch();
@@ -77,6 +79,25 @@ try {
         //LOG ERROR
         exit("ERROR - DB ERROR");   
 }
+//VALIDATE COMMISSION IS A NUMBER
+if(!is_numeric($params['commission'])){
+    exit("ERROR - INVALID COMMISSION");
+}
+//VALIDATE STATUS IS IN THE AVAILABLE STATUSES
+if(!in_array(strtoupper($params['status']), $availableStatuses)){
+    $params['status'] = 'UNKNOWN';
+    //LOG ERROR
+}
+$intStatus = mapStatus($params['status']);
+
+//VALIDATE EVENT TYPE IS IN THE AVAILABLE EVENT TYPES
+/*
+if(!in_array($params['event_type'], $availableEventTypes)){
+    $params['event_type'] = 'UNKNOWN';
+    //LOG ERROR
+}
+*/
+
 //////////////////////////////////////////////////////////////////////////////
 //MAYBE CHECK EVENT AND UPDATE OR INSERT /////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
@@ -86,13 +107,20 @@ try {
     $stmt = $db->prepare("INSERT INTO conversions
         (click_id, commission_id, revenue, status, sale_date, modified_date, event_type, event_id, advertiser_id)
         VALUES (:click_id, :commission_id, :revenue, :status, :sale_date, :modified_date, :event_type, :event_id, :advertiser_id)
-    ");
+        
+        ON DUPLICATE KEY UPDATE
+                revenue = VALUES(revenue),
+                status = VALUES(status),
+                event_type = VALUES(event_type),
+                event_id = VALUES(event_id),
+                modified_date = VALUES(modified_date)
+        ");
 
     $stmt->execute([
         ':click_id' => $click['id'],
         ':commission_id' => $params['commission_id'],
         ':revenue' => $params['commission'],
-        ':status' => $params['status'],
+        ':status' => $intStatus,
         ':event_type' => $params['event_type'],
         ':event_id' => $params['event_id'],
         ':sale_date' => $params['sale_date'],
@@ -103,6 +131,7 @@ try {
 } catch (Exception $e) {
     if ($debug) {
         echo "conversion ERROR: " . $e->getMessage();
+        exit();
     } else {
         //LOG ERROR
         exit("ERROR - DB ERROR");
@@ -113,7 +142,10 @@ try {
 try {
     $stmt = $db->prepare("SELECT
         o.name AS offer_name,
+        o.id AS offer_id,
         cam.name AS campaign_name,
+        cam.id AS campaign_id,
+        aa.affiliate_program AS affiliate_name,
         aa.id AS affiliate_id
         FROM clicks c
         LEFT JOIN offers o ON o.id = c.offer_id
@@ -166,17 +198,14 @@ try {
         :modified_date
         )
     ");
-/////////////////
-//INSERT INTO CONVERSIONS TABLE
-////////////////
 
     $stmt->execute([
         ':click_id' => $params['SUB_ID'],
-        ':offer_id' => $clickDetails['offer_name'], //offer name from click_id
-        ':campaign_id' => $clickDetails['campaign_name'], //campaign name from click_id
+        ':offer_id' => $clickDetails['offer_id'], //offer id from click_id
+        ':campaign_id' => $clickDetails['campaign_id'], //campaign id from click_id
         ':affiliate_id' => $clickDetails['affiliate_id'], //affiliate id from click_id
         ':revenue' => $params['commission'],
-        ':status' => $params['status'],
+        ':status' => $intStatus,
         ':event_type' => $params['event_type'],
         ':event_id' => $params['event_id'],
         ':is_read' => 0,
@@ -188,6 +217,7 @@ try {
 } catch (Exception $e) {
     if ($debug) {
         echo "NOTIFICATION ERROR: " . $e->getMessage();
+        exit();
     } else {
         //LOG ERROR
         exit("ERROR - DB ERROR");
@@ -195,25 +225,71 @@ try {
 }
 
 //SEND TELEGRAM NOTIFICATION
-try {
-    $message = "
-    <b>{$params['event_type']}💰 Conversion</b>
-    ---------------
-    <b>Offer:</b> {$clickDetails['offer_name']}
-    <b>Commission:</b> \${$params['commission']}
-    <b>Status:</b> {$params['status']}
-    <b>Campaign:</b> {$clickDetails['campaign_name']}
-    ";
+if(floatval($params['commission']) > 0.1) {
 
-    sendTelegramMessage($message);
-} catch (Exception $e) {
-    if ($debug) {
-        echo "TELEGRAM ERROR: " . $e->getMessage();
-    } else {
-        //LOG ERROR
-        exit("ERROR - NOTIFICATION ERROR");
+    try {
+        $message = "
+        <b>| {$params['event_type']} | Conversion💰</b>
+        ---------------
+        <b>Offer:</b> {$clickDetails['offer_name']}
+        <b>Commission:</b> \${$params['commission']}
+        <b>Status:</b> {$params['status']}
+        <b>Campaign:</b> {$clickDetails['campaign_name']}
+        
+        <b>Click ID:</b> {$params['SUB_ID']}
+        <b>Commission ID:</b> {$params['commission_id']}
+        <b>Click Created At:</b> {$click['created_at']}
+
+        ";
+
+        sendTelegramMessage($message);
+    } catch (Exception $e) {
+        if ($debug) {
+            echo "TELEGRAM ERROR: " . $e->getMessage();
+            exit();
+        } else {
+            //LOG ERROR
+            exit("ERROR - NOTIFICATION ERROR");
+        }
     }
 }
+/*
+else{
+    try {
+        $message = "Low Commission Update: {$params['commission']} from {$clickDetails['offer_name']}";
+        sendTelegramMessage($message);
+    } catch (Exception $e) {
+        if ($debug) {
+            echo "TELEGRAM ERROR: " . $e->getMessage();
+            exit();
+        } else {
+            //LOG ERROR
+            exit("ERROR - NOTIFICATION ERROR");
+        }
+    }
+}
+    */
 
-echo "SUCCESS";
+
+echo "\n" . "SUCCESS";
 exit();
+
+function mapStatus($status)
+{
+    switch (strtolower($status)) {
+        case 'open':
+            return 1;
+
+        case 'confirmed':
+            return 2;
+
+        case 'rejected':
+            return 3;
+
+        case 'paid':
+            return 4;
+
+        default:
+            return 0; // unknown / fallback
+    }
+}   

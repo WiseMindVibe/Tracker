@@ -514,8 +514,26 @@ function buildCampaignTrackingUrl(basePrefix, uuid, trafficName) {
     let url = `${basePrefix}camid=${encodeURIComponent(uuid)}`;
     switch (t) {
         case "propellerads":
-            url += "&clickid=${SUBID}&campaignid={campaign_id}&country={country}&zoneid={zoneid}&subzone_id={subzone_id}&region={region}&os={os}&osversion={osversion}&device={device}&browser={browser}&browser_version={browser_version}&carrier={carrier}&isp={isp}&connection_type={connection_type}&cost={cost}&useragent={useragent}&user_activity={user_activity}&bannerid={bannerid}&language={language}&payout={payout}&zone_type={zone_type}";
-            break;
+            case "propellerads":
+                url += "&SUB_ID=${SUBID}"
+                    + "&campaign_id={campaign_id}"
+                    + "&country={country}"
+                    + "&region={region}"
+                    + "&language={language}"
+                    + "&device={device}"
+                    + "&os={os}"
+                    + "&os_version={osversion}"
+                    + "&browser={browser}"
+                    + "&browser_version={browser_version}"
+                    + "&connection_type={connection_type}"
+                    + "&carrier={carrier}"
+                    + "&isp={isp}"
+                    + "&zoneid={zoneid}"
+                    + "&subzone_id={subzone_id}"
+                    + "&cost={cost}"
+                    + "&useragent={useragent}"
+                    + "&user_activity={user_activity}";
+                break;
         case "hilltop":
             url += "&geo={{geo}}&zoneid={{zoneid}}&adid={{adid}}&campaignid={{campaignid}}&category={{category}}&cpmbid={{cpmbid}}&price={{price}}&browsername={{browsername}}&appname={{appname}}";
             break;

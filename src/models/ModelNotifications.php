@@ -636,6 +636,7 @@ class ModelNotifications
             return match ($n) {
                 1 => 'new',
                 2 => 'update',
+                3 => 'pull_request',
                 default => '—',
             };
         }

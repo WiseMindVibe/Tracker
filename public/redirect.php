@@ -14,24 +14,24 @@ if (file_exists($countriesPath)) {
 }
 
 $params = [
-    'SUB_ID' => $_GET['SUB_ID'] ?? null, //Click ID from traffic source - Currently NULL, Should I do something with it?
+    'SUB_ID' => $_GET['SUB_ID'] ?? null, //Click ID from traffic source
     'uuid' => $_GET['uuid'] ?? null, //Internal Campaign ID
     'campaign_id' => $_GET['campaign_id'] ?? null, //External Campaign ID
     'country' => strtolower($_GET['country'] ?? null),
-    'region' => $_GET['region'] ?? null,
     'language' => $_GET['language'] ?? null,
-    'device' => $_GET['device'] ?? 'Unknown',
-    'os' => $_GET['os'] ?? 'Unknown',
-    'os_version' => $_GET['os_version'] ?? 'Unknown',
-    'browser' => $_GET['browser'] ?? 'Unknown',
-    'browser_version' => $_GET['browser_version'] ?? 'Unknown',
-    'connection_type' => $_GET['connection_type'] ?? 'Unknown',
-    'isp' => $_GET['isp'] ?? 'Unknown',
-    'carrier' => $_GET['carrier'] ?? 'Unknown',
+    'region' => $_GET['region'] ?? '-',
+    'device' => $_GET['device'] ?? '-',
+    'os' => $_GET['os'] ?? null,
+    'os_version' => $_GET['os_version'] ?? '-',
+    'browser' => $_GET['browser'] ?? null,
+    'browser_version' => $_GET['browser_version'] ?? '-',
+    'connection_type' => $_GET['connection_type'] ?? '-',
+    'isp' => $_GET['isp'] ?? '-',
+    'carrier' => $_GET['carrier'] ?? '-',
     'zone_id' => $_GET['zoneid'] ?? null,
-    'subzone_id' => $_GET['subzone_id'] ?? null,
-    'useragent' => $_GET['useragent'] ?? ($_SERVER['HTTP_USER_AGENT'] ?? 'Unknown'),
-    'user_activity' => $_GET['user_activity'] ?? null,
+    'subzone_id' => $_GET['subzone_id'] ?? '-',
+    'useragent' => $_GET['useragent'] ?? ($_SERVER['HTTP_USER_AGENT'] ?? '-'),
+    'user_activity' => $_GET['user_activity'] ?? '-',
     'ip' => $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0',
     'cost' => $_GET['cost'] ?? 0.00,
     'event_id' => $_GET['event_id'] ?? null,
@@ -173,7 +173,7 @@ $totals = $stmt->fetch();
 
 $totalViews = (int) ($totals['total_views'] ?? 0);
 $totalCap = (int) ($totals['total_cap'] ?? 0);
-$capReached = $totalCap > 0 && $totalViews >= $totalCap;
+$capReached = $totalCap <= 0 || $totalViews >= $totalCap;
 
 if ($capReached) {
     $stmtExt = $db->prepare(

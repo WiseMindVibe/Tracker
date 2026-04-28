@@ -16,7 +16,6 @@
 })();
 </script>
 <head>
-    <title>MyTracker</title>
     <meta charset="UTF-8">
     <link rel="stylesheet" href="./src/assets/includes/topbar/topbar.css">
     <link rel="stylesheet" href="./src/assets/includes/topbar/theme.css">

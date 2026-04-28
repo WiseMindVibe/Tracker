@@ -1,3 +1,4 @@
+<title> Dashboard - Tracker</title>
 <link rel="stylesheet" href="./src/assets/css/dashboard.css">
 <!-- Litepicker -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/litepicker/dist/css/litepicker.css"/>
@@ -89,22 +90,11 @@ $fmtInt = static function (int $n): string {
             <article class="kpi-card">
                 <span class="kpi-card__label">Conversions</span>
                 <span class="kpi-card__value"><?= $fmtInt((int) $stats['total_conversions']) ?></span>
-                <span class="kpi-card__hint">Commission rows with known status (open, confirmed, paid, rejected); excludes unknown</span>
+                <span class="kpi-card__hint">excludes unknown states</span>
             </article>
             <article class="kpi-card">
                 <span class="kpi-card__label">Conv. rate</span>
                 <span class="kpi-card__value"><?= $fmtPct($stats['cr'] !== null ? (float) $stats['cr'] : null) ?></span>
-                <span class="kpi-card__hint">Conversions ÷ clicks</span>
-            </article>
-            <article class="kpi-card">
-                <span class="kpi-card__label">Rejection rate</span>
-                <span class="kpi-card__value"><?= $fmtPct($stats['rejection_rate'] !== null ? (float) $stats['rejection_rate'] : null) ?></span>
-                <span class="kpi-card__hint">No confirmed/paid: R÷(O+R). Else: R÷(O+C+P+R).</span>
-            </article>
-            <article class="kpi-card kpi-card--profit">
-                <span class="kpi-card__label">ROI</span>
-                <span class="kpi-card__value"><?= $fmtPct($stats['roi'] !== null ? (float) $stats['roi'] : null) ?></span>
-                <span class="kpi-card__hint">Uses revenue excluding rejected</span>
             </article>
             <article class="kpi-card">
                 <span class="kpi-card__label">Cost</span>
@@ -122,6 +112,16 @@ $fmtInt = static function (int $n): string {
             <article class="kpi-card kpi-card--profit">
                 <span class="kpi-card__label">Profit</span>
                 <span class="kpi-card__value"><?= $fmtMoney((float) $stats['profit']) ?></span>
+            </article>
+            <article class="kpi-card kpi-card--profit">
+                <span class="kpi-card__label">ROI</span>
+                <span class="kpi-card__value"><?= $fmtPct($stats['roi'] !== null ? (float) $stats['roi'] : null) ?></span>
+                <span class="kpi-card__hint">Uses revenue excluding rejected</span>
+            </article>
+            <article class="kpi-card">
+                <span class="kpi-card__label">Rejection rate</span>
+                <span class="kpi-card__value"><?= $fmtPct($stats['rejection_rate'] !== null ? (float) $stats['rejection_rate'] : null) ?></span>
+                <span class="kpi-card__hint">No confirmed/paid: R÷(O+R). Else: R÷(O+C+P+R).</span>
             </article>
         </div>
     </section>
@@ -158,6 +158,13 @@ $fmtInt = static function (int $n): string {
                     <div><dt>Sum</dt><dd><?= $fmtMoney((float) $stats['rejected_sum']) ?></dd></div>
                 </dl>
             </article>
+            <article class="status-card status-card--muted">
+                <h3 class="status-card__title">Unknown (currently rejected)</h3>
+                <dl class="status-card__stats">
+                    <div><dt>Count</dt><dd><?= $fmtInt((int) $stats['rejected_count']) ?></dd></div>
+                    <div><dt>Sum</dt><dd><?= $fmtMoney((float) $stats['rejected_sum']) ?></dd></div>
+                </dl>
+            </article>
         </div>
     </section>
 
@@ -175,11 +182,17 @@ $fmtInt = static function (int $n): string {
                             <th scope="col">Affiliate</th>
                             <th scope="col" class="num">Clicks</th>
                             <th scope="col" class="num">Conv.</th>
-                            <th scope="col" class="num">CR</th>
-                            <th scope="col" class="num">Rej.</th>
+
+                            <th scope="col" class="num">Open</th>
+                            <th scope="col" class="num">Confirmed</th>
+                            <th scope="col" class="num">Paid</th>
+                            <th scope="col" class="num">Rejected</th>
+                            <th scope="col" class="num">Unknown (currently rejected)</th>
+
                             <th scope="col" class="num">Cost</th>
                             <th scope="col" class="num">Profit</th>
                             <th scope="col" class="num">ROI</th>
+                            <th scope="col" class="num">CR</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -188,11 +201,17 @@ $fmtInt = static function (int $n): string {
                                 <th scope="row"><?= htmlspecialchars((string) $row['affiliate_name']) ?></th>
                                 <td class="num"><?= $fmtInt((int) $row['clicks']) ?></td>
                                 <td class="num"><?= $fmtInt((int) $row['conversions']) ?></td>
-                                <td class="num"><?= $fmtPct((float) $row['cr'], 2) ?></td>
+
+                                <td class="num"><?= $fmtInt((int) $row['conversions']) ?></td>
+                                <td class="num"><?= $fmtInt((int) $row['conversions']) ?></td>
+                                <td class="num"><?= $fmtInt((int) $row['conversions']) ?></td>
                                 <td class="num"><?= $fmtPct($row['rejection_rate'] !== null ? (float) $row['rejection_rate'] : null) ?></td>
+                                <td class="num"><?= $fmtInt((int) $row['conversions']) ?></td>
+
                                 <td class="num"><?= $fmtMoney((float) $row['cost']) ?></td>
                                 <td class="num <?= ((float) $row['profit'] >= 0) ? 'pos' : 'neg' ?>"><?= $fmtMoney((float) $row['profit']) ?></td>
                                 <td class="num"><?= $fmtPct($row['roi'] !== null ? (float) $row['roi'] : null) ?></td>
+                                <td class="num"><?= $fmtPct((float) $row['cr'], 2) ?></td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>
@@ -221,7 +240,7 @@ $fmtInt = static function (int $n): string {
                                     ROI <?= $fmtPct($o['roi'] !== null ? (float) $o['roi'] : null) ?>
                                     · <?= $fmtMoney((float) $o['profit']) ?> profit
                                     <?php if (isset($o['rejection_rate']) && $o['rejection_rate'] !== null): ?>
-                                        · Rej. <?= $fmtPct((float) $o['rejection_rate']) ?>
+                                        · Rej.( remove this ) <?= $fmtPct((float) $o['rejection_rate']) ?>
                                     <?php endif; ?>
                                 </span>
                             </div>
@@ -243,7 +262,7 @@ $fmtInt = static function (int $n): string {
                                 <span class="top-offers-list__name"><?= htmlspecialchars((string) $o['offer_name']) ?></span>
                                 <span class="top-offers-list__meta">
                                     CR <?= $fmtPct((float) $o['cr'], 2) ?>
-                                    · <?= $fmtInt((int) $o['clicks']) ?> clicks
+                                    · <?= $fmtInt((int) $o['clicks']) ?> clicks ( ADD CONVERSIONS)
                                 </span>
                             </div>
                         </li>
@@ -264,7 +283,7 @@ $fmtInt = static function (int $n): string {
                                 <span class="top-offers-list__name"><?= htmlspecialchars((string) $o['offer_name']) ?></span>
                                 <span class="top-offers-list__meta">
                                     <?= $fmtMoney((float) $o['profit']) ?>
-                                    · ROI <?= $fmtPct($o['roi'] !== null ? (float) $o['roi'] : null) ?>
+                                    · ROI <?= $fmtPct($o['roi'] !== null ? (float) $o['roi'] : null) ?> ADD CONVERSIONS & CR
                                 </span>
                             </div>
                         </li>

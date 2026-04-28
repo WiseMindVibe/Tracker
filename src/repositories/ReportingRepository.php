@@ -7,6 +7,18 @@ final class ReportingRepository
     private const SQL_WHERE = ' WHERE ';
     private const SQL_OS_NORMALIZED = "COALESCE(NULLIF(c.`OS`, ''), '(none)')";
     private const SQL_BROWSER_NORMALIZED = "COALESCE(NULLIF(c.browser, ''), '(none)')";
+    private const SQL_COUNTRY_NORMALIZED = "COALESCE(NULLIF(c.country, ''), '(none)')";
+    private const SQL_REGION_NORMALIZED = "COALESCE(NULLIF(c.region, ''), '(none)')";
+    private const SQL_LANGUAGE_NORMALIZED = "COALESCE(NULLIF(c.language, ''), '(none)')";
+    private const SQL_DEVICE_NORMALIZED = "COALESCE(NULLIF(c.device, ''), '(none)')";
+    private const SQL_OS_VERSION_NORMALIZED = "COALESCE(NULLIF(c.os_version, ''), '(none)')";
+    private const SQL_BROWSER_VERSION_NORMALIZED = "COALESCE(NULLIF(c.browser_version, ''), '(none)')";
+    private const SQL_CONNECTION_TYPE_NORMALIZED = "COALESCE(NULLIF(c.connection_type, ''), '(none)')";
+    private const SQL_CARRIER_NORMALIZED = "COALESCE(NULLIF(c.carrier, ''), '(none)')";
+    private const SQL_ISP_NORMALIZED = "COALESCE(NULLIF(c.isp, ''), '(none)')";
+    private const SQL_ZONEID_NORMALIZED = "COALESCE(NULLIF(c.zone_id, ''), '(none)')";
+    private const SQL_SUBZONE_ID_NORMALIZED = "COALESCE(NULLIF(c.subzone_id, ''), '(none)')";
+    private const SQL_EXTERNAL_CAMPAIGN_ID_NORMALIZED = "COALESCE(NULLIF(cei_agg.ext_min, ''), '(none)')";
 
     private PDO $pdo;
 
@@ -146,6 +158,11 @@ final class ReportingRepository
                 'group_name_sql' => "COALESCE(MAX(cam.name), '(no campaign)')",
                 'group_by_sql' => 'COALESCE(c.campaign_id, 0)',
             ],
+            'external_campaign_id' => [
+                'group_key_sql' => self::SQL_EXTERNAL_CAMPAIGN_ID_NORMALIZED,
+                'group_name_sql' => self::SQL_EXTERNAL_CAMPAIGN_ID_NORMALIZED,
+                'group_by_sql' => self::SQL_EXTERNAL_CAMPAIGN_ID_NORMALIZED,
+            ],
             'os' => [
                 'group_key_sql' => self::SQL_OS_NORMALIZED,
                 'group_name_sql' => self::SQL_OS_NORMALIZED,
@@ -155,6 +172,61 @@ final class ReportingRepository
                 'group_key_sql' => self::SQL_BROWSER_NORMALIZED,
                 'group_name_sql' => self::SQL_BROWSER_NORMALIZED,
                 'group_by_sql' => self::SQL_BROWSER_NORMALIZED,
+            ],
+            'country' => [
+                'group_key_sql' => self::SQL_COUNTRY_NORMALIZED,
+                'group_name_sql' => self::SQL_COUNTRY_NORMALIZED,
+                'group_by_sql' => self::SQL_COUNTRY_NORMALIZED,
+            ],
+            'region' => [
+                'group_key_sql' => self::SQL_REGION_NORMALIZED,
+                'group_name_sql' => self::SQL_REGION_NORMALIZED,
+                'group_by_sql' => self::SQL_REGION_NORMALIZED,
+            ],
+            'language' => [
+                'group_key_sql' => self::SQL_LANGUAGE_NORMALIZED,
+                'group_name_sql' => self::SQL_LANGUAGE_NORMALIZED,
+                'group_by_sql' => self::SQL_LANGUAGE_NORMALIZED,
+            ],
+            'device' => [
+                'group_key_sql' => self::SQL_DEVICE_NORMALIZED,
+                'group_name_sql' => self::SQL_DEVICE_NORMALIZED,
+                'group_by_sql' => self::SQL_DEVICE_NORMALIZED,
+            ],
+            'os_version' => [
+                'group_key_sql' => self::SQL_OS_VERSION_NORMALIZED,
+                'group_name_sql' => self::SQL_OS_VERSION_NORMALIZED,
+                'group_by_sql' => self::SQL_OS_VERSION_NORMALIZED,
+            ],
+            'browser_version' => [
+                'group_key_sql' => self::SQL_BROWSER_VERSION_NORMALIZED,
+                'group_name_sql' => self::SQL_BROWSER_VERSION_NORMALIZED,
+                'group_by_sql' => self::SQL_BROWSER_VERSION_NORMALIZED,
+            ],
+            'connection_type' => [
+                'group_key_sql' => self::SQL_CONNECTION_TYPE_NORMALIZED,
+                'group_name_sql' => self::SQL_CONNECTION_TYPE_NORMALIZED,
+                'group_by_sql' => self::SQL_CONNECTION_TYPE_NORMALIZED,
+            ],
+            'carrier' => [
+                'group_key_sql' => self::SQL_CARRIER_NORMALIZED,
+                'group_name_sql' => self::SQL_CARRIER_NORMALIZED,
+                'group_by_sql' => self::SQL_CARRIER_NORMALIZED,
+            ],
+            'isp' => [
+                'group_key_sql' => self::SQL_ISP_NORMALIZED,
+                'group_name_sql' => self::SQL_ISP_NORMALIZED,
+                'group_by_sql' => self::SQL_ISP_NORMALIZED,
+            ],
+            'zoneid' => [
+                'group_key_sql' => self::SQL_ZONEID_NORMALIZED,
+                'group_name_sql' => self::SQL_ZONEID_NORMALIZED,
+                'group_by_sql' => self::SQL_ZONEID_NORMALIZED,
+            ],
+            'subzone_id' => [
+                'group_key_sql' => self::SQL_SUBZONE_ID_NORMALIZED,
+                'group_name_sql' => self::SQL_SUBZONE_ID_NORMALIZED,
+                'group_by_sql' => self::SQL_SUBZONE_ID_NORMALIZED,
             ],
             default => throw new InvalidArgumentException('Unsupported group: ' . $groupBy),
         };
@@ -172,6 +244,7 @@ final class ReportingRepository
     ): array {
         $needsOffers = $groupBy === 'offer';
         $needsCampaign = $groupBy === 'campaign';
+        $needsExternalCampaignIds = $groupBy === 'external_campaign_id' || array_key_exists('external_campaign_id', $parentFilters);
 
         $joins = [];
         if ($needsOffers) {
@@ -179,6 +252,9 @@ final class ReportingRepository
         }
         if ($needsCampaign) {
             $joins[] = 'LEFT JOIN campaigns cam ON cam.id = c.campaign_id';
+        }
+        if ($needsExternalCampaignIds) {
+            $joins[] = 'LEFT JOIN (SELECT campaign_id, MIN(external_campaign_id) AS ext_min FROM campaign_external_ids GROUP BY campaign_id) cei_agg ON cei_agg.campaign_id = c.campaign_id';
         }
 
         $params = [
@@ -246,9 +322,79 @@ final class ReportingRepository
                 }
                 break;
 
+            case 'external_campaign_id':
+                $this->appendStringParentFilter('external_campaign_id', 'cei_agg.ext_min', $value, $where, $params);
+                break;
+
+            case 'country':
+                $this->appendStringParentFilter('country', 'c.country', $value, $where, $params);
+                break;
+
+            case 'region':
+                $this->appendStringParentFilter('region', 'c.region', $value, $where, $params);
+                break;
+
+            case 'language':
+                $this->appendStringParentFilter('language', 'c.language', $value, $where, $params);
+                break;
+
+            case 'device':
+                $this->appendStringParentFilter('device', 'c.device', $value, $where, $params);
+                break;
+
+            case 'os_version':
+                $this->appendStringParentFilter('os_version', 'c.os_version', $value, $where, $params);
+                break;
+
+            case 'browser_version':
+                $this->appendStringParentFilter('browser_version', 'c.browser_version', $value, $where, $params);
+                break;
+
+            case 'connection_type':
+                $this->appendStringParentFilter('connection_type', 'c.connection_type', $value, $where, $params);
+                break;
+
+            case 'carrier':
+                $this->appendStringParentFilter('carrier', 'c.carrier', $value, $where, $params);
+                break;
+
+            case 'isp':
+                $this->appendStringParentFilter('isp', 'c.isp', $value, $where, $params);
+                break;
+
+            case 'zoneid':
+                $this->appendStringParentFilter('zoneid', 'c.zone_id', $value, $where, $params);
+                break;
+
+            case 'subzone_id':
+                $this->appendStringParentFilter('subzone_id', 'c.subzone_id', $value, $where, $params);
+                break;
+
             default:
                 throw new InvalidArgumentException('Unsupported parent filter: ' . $key);
         }
+    }
+
+    /**
+     * @param list<string> $where
+     * @param array<string, mixed> $params
+     */
+    private function appendStringParentFilter(
+        string $key,
+        string $column,
+        int|string $value,
+        array &$where,
+        array &$params
+    ): void {
+        $stringValue = (string) $value;
+        if ($stringValue === '(none)') {
+            $where[] = '(' . $column . ' IS NULL OR ' . $column . ' = \'\')';
+            return;
+        }
+
+        $param = ':parent_' . $key;
+        $where[] = $column . ' = ' . $param;
+        $params[$param] = $stringValue;
     }
 
     /**

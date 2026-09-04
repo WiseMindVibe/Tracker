@@ -21,6 +21,8 @@ class Blog extends Model
         return $this->belongsTo(Company::class);
     }
 
-    public function Buffers(): HasMany { return $this->hasMany(BlogBuffer::class); }
-
+    public function buffers(): HasMany
+    {
+        return $this->hasMany(BlogBuffer::class);
+    }
 }

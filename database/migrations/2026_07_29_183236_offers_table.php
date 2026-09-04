@@ -22,6 +22,8 @@ return new class extends Migration
             $table->text('affiliate_link'); // required for static offers
             $table->boolean('is_tester')->default(false);
             $table->string('status')->default('active'); // active | inactive | archived
+            $table->unsignedInteger('total_impressions')->default(0);
+            $table->unsignedInteger('total_views')->default(0);
             $table->timestamps();
         });
 

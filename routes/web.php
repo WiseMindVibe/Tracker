@@ -8,9 +8,10 @@ use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ModuleController;
 use App\Http\Controllers\RedirectController;
-
+use App\Http\Controllers\testController;
 use App\Modules\ModuleManager;
 use App\Support\Countries\CountryRepository;
+use App\Http\Controllers\Api\ClickRedirectionController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Illuminate\Http\Request;
@@ -19,9 +20,8 @@ Route::inertia('/', 'welcome')->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
-    Route::get('dashboard/stats/', [DashboardController::class, 'stats'])->name('dashboard.stats');
-    Route::get('companies', [CompanyController::class, 'index'])->name('companies.index');
-    Route::get('blogs', [BlogController::class, 'index'])->name('blogs.index');
+
+    Route::get('test', [testController::class, 'test'])->name('test');
 });
 
 //Route::resource('/m/{module}', [ModuleController::class]);
@@ -43,17 +43,5 @@ Route::domain('{domain}')->group(function () {
     Route::get('/_t/bounce/{clickId}', [BufferRelayController::class, 'bounce'])->name('buffer.bounce');
 });
 
-Route::get('/api/m/{module}/table', [ModuleController::class, 'table']);
-
-
-Route::get('/api/countries/search', function (Request $request, CountryRepository $countries) {
-    return response()->json(
-        $countries->search($request->query('q', ''))
-    );
-});
-
-Route::get('/api/countries/all', function (CountryRepository $countries) {
-    return response()->json($countries->all());
-});
 
 require __DIR__ . '/settings.php';

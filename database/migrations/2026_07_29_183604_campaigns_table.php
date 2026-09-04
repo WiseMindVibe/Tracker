@@ -20,6 +20,7 @@ return new class extends Migration
             $table->boolean('is_tester')->default(false);
             $table->string('fallback_url')->nullable();
             $table->string('status')->default('active');
+            $table->unsignedInteger('impressions')->default(0);
             $table->timestamps();
         });
 
@@ -35,8 +36,10 @@ return new class extends Migration
             $table->id();
             $table->foreignId('campaign_id')->constrained()->restrictOnDelete();
             $table->foreignId('offer_id')->constrained()->restrictOnDelete();
+            $table->unsignedBigInteger('current_impressions')->default(0);
             $table->unsignedBigInteger('current_views')->default(0);
             $table->unsignedBigInteger('cap_views')->default(0);
+            $table->unsignedBigInteger('total_views')->default(0);
             $table->timestamps();
 
             $table->unique(['campaign_id', 'offer_id']);

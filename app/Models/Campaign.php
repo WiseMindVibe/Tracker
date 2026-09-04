@@ -16,7 +16,7 @@ class Campaign extends Model
 
     public $table = 'campaigns';
 
-    public $fillable = ['traffic_account_id', 'name', 'country', 'is_tester', 'status'];
+    public $fillable = ['traffic_account_id', 'name', 'country', 'is_tester', 'fallback_url', 'status'];
 
     protected $appends = ['tracking_link'];
 

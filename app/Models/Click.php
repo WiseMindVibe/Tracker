@@ -13,13 +13,11 @@ class Click extends Model
     public $table = 'clicks';
 
     public $fillable = [
+        'sub_id',
         'click_id',
         'offer_id',
         'campaign_id',
         'traffic_campaign_id',
-        'routed_via',
-        'status',
-        'is_bot',
         'country',
         'region',
         'language',
@@ -40,8 +38,6 @@ class Click extends Model
     ];
 
     protected $casts = [
-        'raw_params' => 'array',
-        'is_bot' => 'boolean',
         'cost' => 'decimal:6',
     ];
 

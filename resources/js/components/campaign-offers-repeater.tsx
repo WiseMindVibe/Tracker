@@ -141,7 +141,7 @@ export default function CampaignOffersRepeater({
                                             e.target.value
                                         )
                                     }
-                                    disabled
+                                    //disabled
                                     className="w-full rounded-md border border-border px-3 py-1.5 text-sm"
                                 />
 

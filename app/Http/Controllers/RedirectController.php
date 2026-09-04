@@ -2,41 +2,69 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Campaign;
-use App\Models\Offer;
-use App\Models\Click;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+use App\Models\Campaign;
+use App\Models\Click;
+use App\Models\ClicksRedirections;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Crypt;
+
+use function Pest\Laravel\json;
 
 class RedirectController extends Controller
 {
     public function handle(Request $request)
     {
+        $debug = true;
+
+        // Identify valid campaign
         $campaignUuid = $request->query('campaign_uuid');
 
         $campaign = $campaignUuid
             ? Campaign::where('uuid', $campaignUuid)->where('status', 'active')->first()
             : null;
-
         if (!$campaign) {
             abort(404);
         }
 
-        // Match the network's campaign_id macro against our known traffic IDs (attribution only)
-        $trafficCampaignId = null;
+        //SafeRedirect URL
+        $fallbackURL = $campaign->fallback_url;
+
+        // Identiy traffic campaign
         if ($request->filled('campaign_id')) {
             $trafficCampaignId = $campaign->trafficIds()
                 ->where('traffic_campaign_id', $request->query('campaign_id'))
-                ->value('id');
+                ->value('id') ?? null;
         }
-        $offer = $this->pickEligibleOffer($campaign);
 
+        // Choose a random offer from the campaign BASED ON WEIGHT SELECTION
+        $campaignOffer = $this->pickEligibleOffer($campaign);
+
+        if (!$campaignOffer) {
+            if (!$debug)
+                return $this->safeRedirect($fallbackURL);
+            else
+                return "No Campaign Offer Found, Send request to traffic source to close campaign";
+        }
+
+        // Check if click's country matchs offer country
+        $country = $request->query('country');
+        if (strtolower($campaignOffer->offer->country) !== strtolower($country)) {
+            if (!$debug)
+                return $this->safeRedirect($fallbackURL);
+            else
+                return "Campign Country MISMATCH! Got: " . $country . ". Expected: " . $campaignOffer->offer->country;
+        }
+
+        // Receive paramerters from the traffic source
+        // & Generate A click_id
         $click = new Click([
+            'sub_id' => $request->query('SUB_ID'),
             'click_id' => (string) \Illuminate\Support\Str::uuid(),
             'campaign_id' => $campaign->id,
-            'offer_id' => $offer?->id,
+            'offer_id' => $campaignOffer?->offer->id,
             'traffic_campaign_id' => $trafficCampaignId,
-            'country' => $request->query('country'),
+            'country' => $country,
             'region' => $request->query('region'),
             'language' => $request->query('language'),
             'device' => $request->query('device'),
@@ -55,69 +83,101 @@ class RedirectController extends Controller
             'raw_params' => $request->query(),
         ]);
 
+        // Depends on affiliate's blog redirect rate
+        $blogRedirectRate = (int)$campaignOffer->offer->affiliateAccount->affiliateCatalog->blog_redirect_rate;
 
-        if (!$offer) {
-            $click->status = 'no_offer';
+        // Send traffic directly to affiliate ( Blog Redirect Rate = 0% )
+        if ($blogRedirectRate === 0) {
+            // + Click redirection = direct
+            ClicksRedirections::create([
+                'click_id' => $click['click_id'],
+                'status' => 'direct',
+            ]);
+
+            // Save Data to clicks
             $click->save();
 
-            return $campaign->fallback_url
-                ? redirect()->away($campaign->fallback_url)
-                : response()->noContent();
-        }
-
-        // Increment view + write the click atomically so a race between two
-        // simultaneous clicks can't both slip in under the cap.
-        DB::transaction(function () use ($campaign, $offer, $click) {
-            $updated = DB::table('campaigns_offers')
-                ->where('campaign_id', $campaign->id)
-                ->where('offer_id', $offer->id)
-                ->where('current_views', '<', DB::raw('cap_views'))
-                ->increment('current_views');
-
-            $click->offer_id = $offer->id;
-            $click->routed_via = 'direct'; // hardcoded until Phase 2
-            $click->status = 'redirected';
+            // Send traffic directly to affiliate
+            return $this->safeRedirect($campaignOffer->offer->affiliate_link);
+        } else {
+            // + Click redirection = Tracker-Blog | Blog-Buffer | Buffer-Blog | Blog-Affiliate
+            ClicksRedirections::create([
+                'click_id' => $click['click_id'],
+                'status' => 'tracker-blog',
+            ]);
+            // Save Data to clicks
             $click->save();
-        });
 
-        $affiliateAccount = $offer->affiliateAccount; // belongsTo
-        $redirectRate = $affiliateAccount->affiliateCatalog->blog_redirect_rate ?? 0;
+            // Grab these:
+            /// - Click ID
+            /// - Affiliate Link
+            /// - Affiliate -> Token
+            /// - Affiliate -> Blog Redirect Rate
+            /// - Blog -> Domain
+            /// - Blog -> Buffer URL
 
-        $buffer = $offer->blog->buffers()->inRandomOrder()->first();
+            $payload = [
+                'click_id' => $click->click_id,
+                'affiliate_link' => $campaignOffer->offer->affiliate_link,
+                'affiliate_token' => $campaignOffer->offer->affiliateAccount->affiliateCatalog->affiliate_token,
+                'domain' => $campaignOffer->offer->blog->domain,
+                'buffer_url' => $campaignOffer->offer->blog->buffers->random()->buffer_url,
+                'status' => 'tracker-blog',
+            ];
+            $reference = base64_encode(
+                json_encode($payload)
+            );
 
-        $useBufferPath = $buffer && (mt_rand(1, 100) <= $redirectRate);
+            // Send traffic to Blog Domain with affiliate link, affiliate tokem, blog's buffer url
+            $blogURL = $campaignOffer->offer->blog->domain . '?ref=' . urlencode($reference);
 
-        $click->routed_via = $useBufferPath ? 'buffer' : 'direct';
-        $click->save();
-
-        if (!$useBufferPath) {
-            return redirect()->away($offer->affiliate_link);
+            $campaignOffer->increment('current_views');
+            return $this->safeRedirect($blogURL);
+            // + On the blog's domain send traffic to buffer, return to blog, check for saved cookie, send to affiliate link with all parameters
         }
-
-        return response()->json([
-            'message' => 'Click received',
-            'click_id' => $click->click_id,
-            'query' => $request->query(),
-        ]);
-
-        return redirect()->away(
-            route('blog.enter', ['domain' => $offer->blog->domain, 'clickId' => $click->id])
-        );
     }
 
+
+    // Choose a random offer from the campaign BASED ON WEIGHT SELECTION
+    //// ~ If campaign's cap reached -> stop request to traffic campaign id & send the click to a fallback URL
     private function pickEligibleOffer(Campaign $campaign)
     {
-        return $campaign->offers()
-            ->join('offers', 'offers.id', '=', 'campaigns_offers.offer_id')
-            ->where('offers.status', 'active')
-            ->where('offers.country', $campaign->country)
-            ->whereColumn(
-                'campaigns_offers.current_views',
-                '<',
-                'campaigns_offers.cap_views'
-            )
-            ->inRandomOrder()
-            ->select('offers.*')
-            ->first();
+        /// - Check if cap > current views    
+        $campaignOffers = $campaign->offers()
+            ->whereColumn('cap_views', '>', 'current_views')
+            ->with('offer')
+            ->get()
+            /// - Check if offer is active
+            ->filter(fn($campaignOffer) => $campaignOffer->offer?->status === 'active');
+
+        if ($campaignOffers->isEmpty()) {
+            return null;
+        }
+
+        $lowestFillPercentage = $campaignOffers
+            ->map(function ($campaignOffer) {
+                return $campaignOffer->cap_views > 0
+                    ? $campaignOffer->current_views / $campaignOffer->cap_views
+                    : 1;
+            })
+            ->min();
+
+        $lowestOffers = $campaignOffers->filter(function ($campaignOffer) use ($lowestFillPercentage) {
+            $fillPercentage = $campaignOffer->cap_views > 0
+                ? $campaignOffer->current_views / $campaignOffer->cap_views
+                : 1;
+
+            return $fillPercentage === $lowestFillPercentage;
+        });
+
+        return $lowestOffers->random();
     }
+
+    private function safeRedirect(string $url): RedirectResponse
+    {
+        return redirect()->away($url);
+    }
+    // Increase offer's current views by +1
+
+
 }

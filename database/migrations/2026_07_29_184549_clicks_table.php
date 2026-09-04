@@ -12,23 +12,21 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('clicks', function (Blueprint $table) {
-            $table->bigIncrements('id');
+            $table->id();
 
+            $table->string('sub_id');
             $table->uuid('click_id')->unique();
 
             $table->foreignId('offer_id')->constrained()->restrictOnDelete();
             $table->foreignId('campaign_id')->nullable()->constrained()->nullOnDelete();
             $table->foreignId('traffic_campaign_id')->constrained('campaigns_traffic_ids')->restrictOnDelete();
-            $table->string('routed_via')->nullable(); // 'direct' | 'blog'
-            $table->string('status')->default('pending'); // pending 'redirected' | 'rejected_no_capacity' | 'rejected_invalid'
-            $table->boolean('is_bot')->default(false); // wired up in Phase 3
-
-
+            $table->string('status')->default('pending
+            ');
 
             $table->string('country', 2)->nullable();
             $table->string('region', 40)->nullable();
             $table->string('language', 40)->nullable();
-            $table->string('device', 20)->nullable(); // desktop | mobile | tablet | bot
+            $table->string('device', 20)->nullable(); // desktop | mobile | tablet
             $table->string('os', 40)->nullable();
             $table->string('os_version', 40)->nullable();
             $table->string('browser', 40)->nullable();
@@ -44,8 +42,13 @@ return new class extends Migration
             $table->decimal('cost', 10, 5)->default(0);
             $table->timestamps();
 
-
             $table->index(['campaign_id', 'created_at']);
+        });
+
+        Schema::create('clicks_redirections', function (Blueprint $table) {
+            $table->id();
+            $table->foreignUuid('click_id');
+            $table->string('status');
         });
     }
 
@@ -54,6 +57,7 @@ return new class extends Migration
      */
     public function down(): void
     {
+        Schema::dropIfExists('clicks_redirections');
         Schema::dropIfExists('clicks');
     }
 };

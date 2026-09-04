@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\Campaign;
+use App\Models\TrafficAccount;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -19,10 +20,11 @@ class CampaignFactory extends Factory
     {
         return [
             'uuid' => fake()->uuid(),
-            //traffic_account_id
+            'traffic_account_id' => TrafficAccount::query()->inRandomOrder()->value('id'),
             'name' => fake()->lastName(),
             'country' => fake()->countryCode(),
             'is_tester' => fake()->boolean(),
+            'fallback_url' => 'https://google.com'
         ];
     }
 }

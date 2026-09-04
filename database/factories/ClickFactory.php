@@ -21,14 +21,14 @@ class ClickFactory extends Factory
     public function definition(): array
     {
         return [
+            'sub_id' => fake()->unique()->bothify('##########'),
             'click_id' => 'clk_' . fake()->unique()->bothify('##########'),
             'offer_id' => Offer::query()->inRandomOrder()->value('id'),
             'campaign_id' => Campaign::query()->inRandomOrder()->value('id'),
             'traffic_campaign_id' => CampaignTrafficId::query()->inRandomOrder()->value('id'),
 
-            'routed_via' => 'direct',
-            'status' => 'pending',
-            'is_bot' => false,
+            'status' => 'DUMMY',
+
             'country' => fake()->countryCode(),
             'region' => fake()->state(),
             'language' => fake()->randomElement(['en', 'es', 'fr', 'de', 'it', 'pt', 'ar', 'ru']),

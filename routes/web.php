@@ -1,20 +1,13 @@
 <?php
 
-use App\Http\Controllers\ResourceController;
-use App\Http\Controllers\BlogController;
 use App\Http\Controllers\BlogRelayController;
 use App\Http\Controllers\BufferRelayController;
-use App\Http\Controllers\CompanyController;
+use App\Http\Controllers\ConversionController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ModuleController;
 use App\Http\Controllers\RedirectController;
 use App\Http\Controllers\testController;
-use App\Modules\ModuleManager;
-use App\Support\Countries\CountryRepository;
-use App\Http\Controllers\Api\ClickRedirectionController;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
-use Illuminate\Http\Request;
 
 Route::inertia('/', 'welcome')->name('home');
 
@@ -24,7 +17,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('test', [testController::class, 'test'])->name('test');
 });
 
-//Route::resource('/m/{module}', [ModuleController::class]);
+// Route::resource('/m/{module}', [ModuleController::class]);
 
 Route::get('/m/{module}', [ModuleController::class, 'index'])->name('modules.index');
 Route::get('/m/{module}/create', [ModuleController::class, 'create'])->name('modules.create');
@@ -34,6 +27,8 @@ Route::get('/m/{module}/{id}/edit', [ModuleController::class, 'edit'])->name('mo
 Route::put('/m/{module}/{id}', [ModuleController::class, 'update'])->name('modules.update');
 Route::delete('/m/{module}/{id}', [ModuleController::class, 'destroy'])->name('modules.destroy');
 
+Route::get('/conversions', [ConversionController::class, 'index'])->name('conversions.index');
+
 Route::get('/r', [RedirectController::class, 'handle'])->name('click.redirect');
 
 // routes/web.php — separate group, only active on non-tracker domains
@@ -42,6 +37,5 @@ Route::domain('{domain}')->group(function () {
     Route::get('/_t/return/{clickId}', [BlogRelayController::class, 'returnFromBuffer'])->name('blog.return');
     Route::get('/_t/bounce/{clickId}', [BufferRelayController::class, 'bounce'])->name('buffer.bounce');
 });
-
 
 require __DIR__ . '/settings.php';

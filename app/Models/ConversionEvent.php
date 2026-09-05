@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ConversionEvent extends Model
 {
@@ -10,9 +12,15 @@ class ConversionEvent extends Model
 
     protected $fillable = [
         'click_id',
+        'affiliate_catalog_id',
         'commission_id',
         'commission',
         'status',
+        'affiliate_catalog_id',
+        'external_event_id',
+        'event_type',
+        'currency',
+        'event_occurred_at',
         'created_at',
         'updated_at',
     ];
@@ -25,4 +33,19 @@ class ConversionEvent extends Model
      * automatic timestamp management stops it from overwriting those.
      */
     public $timestamps = false;
+
+    protected $casts = [
+        'commission' => 'decimal:5',
+        'event_occurred_at' => 'datetime',
+    ];
+
+    public function click(): BelongsTo
+    {
+        return $this->belongsTo(Click::class);
+    }
+
+    public function conversions(): HasMany
+    {
+        return $this->hasMany(Conversion::class);
+    }
 }

@@ -19,6 +19,7 @@ class ConversionEventFactory extends Factory
     {
         return [
             //click_id
+            //'affiliate_account_id' => AffiliateAccount::query()->inRandomOrder()->value('id'),
             'commission_id' => fake()->phoneNumber(),
             'commission' => fake()->randomDigit(),
             'status' => fake()->randomElement(['Open', 'Confirmed', 'Rejected', 'Paid']),

@@ -16,7 +16,9 @@ return new class extends Migration
 
             $table->foreignId('conversion_event_id')->constrained('conversions_events')->restrictOnDelete();
             $table->tinyInteger('is_read');
-            $table->timestamp('read_at');
+            $table->timestamp('read_at')->nullable();
+
+            $table->unique('conversion_event_id');
 
             $table->timestamps();
         });

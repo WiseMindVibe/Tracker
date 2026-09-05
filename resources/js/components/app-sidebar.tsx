@@ -70,12 +70,12 @@ const catalogNavItems: NavItem[] = [
     },
     {
         title: 'Conversions',
-        href: '/m/conversions',
+        href: '/conversions',
         icon: ArrowLeftRightIcon,
     },
     {
         title: 'Notifications',
-        href: '/m/notifications',
+        href: '/notifications',
         icon: BellIcon,
     },
 ];

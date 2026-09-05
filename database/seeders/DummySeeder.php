@@ -153,13 +153,28 @@ class DummySeeder extends Seeder
 
                 $eventCreatedAt = fake()->dateTimeBetween($click->created_at, 'now');
 
+                $affiliateCatalogId = $click->offer
+                    ->affiliateAccount
+                    ->affiliate_catalog_id;
+
                 $conversionEvent = ConversionEvent::query()->create([
                     'click_id' => $click->id,
+                    'affiliate_catalog_id' => $click->offer->affiliateAccount->affiliate_catalog_id,
                     'commission_id' => fake()->unique()->uuid(),
                     'commission' => fake()->randomFloat(5, 0, 100),
-                    'status' => fake()->randomElement(['Open', 'Confirmed', 'Rejected', 'Paid']),
+                    'status' => fake()->randomElement([
+                        'Open',
+                        'Confirmed',
+                        'Rejected',
+                        'Paid',
+                    ]),
+                    'event_type' => fake()->randomElement([
+                        'NEW',
+                        'UPDATE',
+                    ]),
+                    'external_event_id' => fake()->unique()->uuid(),
                     'created_at' => $eventCreatedAt,
-                    'updated_at' => $eventCreatedAt
+                    'updated_at' => $eventCreatedAt,
                 ]);
 
 

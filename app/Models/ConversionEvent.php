@@ -2,12 +2,16 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ConversionEvent extends Model
 {
+    /** @use HasFactory<\Database\Factories\ConversionEventFactory> */
+    use HasFactory;
+
     protected $table = 'conversions_events';
 
     protected $fillable = [
@@ -15,14 +19,20 @@ class ConversionEvent extends Model
         'affiliate_catalog_id',
         'commission_id',
         'commission',
-        'status',
-        'affiliate_catalog_id',
-        'external_event_id',
-        'event_type',
         'currency',
-        'event_occurred_at',
+        'status',
+        'event_id',
+        'event_type',
+        'advertiser_id',
+        'sale_date',
+        'modified_date',
+        'advertiser_sale_amount',
+        'advertiser_name',
+        'commission_type',
+        'payout_id',
+        'country_code',
+        'site_id',
         'created_at',
-        'updated_at',
     ];
 
     /**
@@ -44,8 +54,8 @@ class ConversionEvent extends Model
         return $this->belongsTo(Click::class);
     }
 
-    public function conversions(): HasMany
+    public function affiliateCatalog(): BelongsTo
     {
-        return $this->hasMany(Conversion::class);
+        return $this->belongsTo(AffiliateCatalog::class);
     }
 }

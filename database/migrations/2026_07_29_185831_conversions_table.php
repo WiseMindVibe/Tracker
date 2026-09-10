@@ -75,18 +75,40 @@ return new class extends Migration
             $table->bigIncrements('id');
 
             $table->foreignId('click_id')->constrained()->restrictOnDelete();
+            $table->foreignId('affiliate_catalog_id')->constrained('affiliate_catalog')->restrictOnDelete();
+
             $table->string('commission_id');
             $table->decimal('commission', 10, 5);
+            $table->string('currency', 3)->nullable();
+
             $table->string('status');
 
-            $table->timestamps();
+            $table->string('event_id')->nullable();
+            $table->string('event_type')->nullable();
+            $table->string('advertiser_id')->nullable();
+            $table->string('sale_date')->nullable();
+            $table->string('modified_date')->nullable();
+            $table->string('advertiser_sale_amount')->nullable();
+
+
+            $table->string('advertiser_name')->nullable();
+            $table->string('commission_type')->nullable();
+            $table->string('payout_id')->nullable();
+            $table->string('country_code')->nullable();
+            $table->string('site_id')->nullable();
+
+            $table->timestamp('created_at');
+
+            $table->unique(['affiliate_catalog_id', 'click_id', 'commission_id', 'status', 'commission'], 'conversion_events_dedupe_unique');
         });
 
         Schema::create('conversions', function (Blueprint $table) {
             $table->bigIncrements('id');
 
             $table->foreignId('conversion_event_id')->constrained('conversions_events')->restrictOnDelete();
-            $table->string('conversion_id')->unique();
+            $table->string('transaction_id')->unique();
+            $table->string('currency', 3)->nullable();
+
 
             $table->timestamps();
         });

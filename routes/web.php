@@ -5,9 +5,11 @@ use App\Http\Controllers\BufferRelayController;
 use App\Http\Controllers\ConversionController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ModuleController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\RedirectController;
 use App\Http\Controllers\testController;
 use Illuminate\Support\Facades\Route;
+
 
 Route::inertia('/', 'welcome')->name('home');
 
@@ -28,6 +30,13 @@ Route::put('/m/{module}/{id}', [ModuleController::class, 'update'])->name('modul
 Route::delete('/m/{module}/{id}', [ModuleController::class, 'destroy'])->name('modules.destroy');
 
 Route::get('/conversions', [ConversionController::class, 'index'])->name('conversions.index');
+Route::get('/conversions/{click}/history', [ConversionController::class, 'history'])->name('conversions.history');
+
+Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+Route::patch('/notifications/mark-all-read', [NotificationController::class, 'markAllRead'])
+    ->name('notifications.mark-all-read');
+Route::patch('/notifications/{notification}/toggle-read', [NotificationController::class, 'toggleRead'])
+    ->name('notifications.toggle-read');
 
 Route::get('/r', [RedirectController::class, 'handle'])->name('click.redirect');
 
@@ -39,3 +48,4 @@ Route::domain('{domain}')->group(function () {
 });
 
 require __DIR__ . '/settings.php';
+require __DIR__ . '/postback.php';

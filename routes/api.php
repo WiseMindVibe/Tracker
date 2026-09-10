@@ -13,13 +13,6 @@ Route::get('/user', function (Request $request) {
 
 Route::patch('clicks/{click_id}/status', [ClickRedirectionController::class, 'updateStatus']);
 
-Route::match(
-    ['GET', 'POST'],
-    'postback/{affiliate}',
-    [PostbackController::class, 'store']
-)
-    ->where('affiliate', '[a-z0-9-]+')
-    ->name('postback.receive');
 
 Route::get('/api/m/{module}/table', [ModuleController::class, 'table']);
 

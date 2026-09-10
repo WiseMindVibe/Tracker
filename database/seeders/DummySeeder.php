@@ -172,9 +172,8 @@ class DummySeeder extends Seeder
                         'NEW',
                         'UPDATE',
                     ]),
-                    'external_event_id' => fake()->unique()->uuid(),
+                    'event_id' => fake()->unique()->uuid(),
                     'created_at' => $eventCreatedAt,
-                    'updated_at' => $eventCreatedAt,
                 ]);
 
 
@@ -187,7 +186,7 @@ class DummySeeder extends Seeder
 
                 Conversion::factory()->create([
                     'conversion_event_id' => $conversionEvent->id,
-                    'conversion_id' => "{$click->offer->affiliateAccount->id}_{$conversionEvent->commission_id}",
+                    'transaction_id' => "{$click->offer->affiliateAccount->id}_{$conversionEvent->commission_id}",
                     'created_at' => $eventCreatedAt,
                     'updated_at' => $eventCreatedAt
                 ]);

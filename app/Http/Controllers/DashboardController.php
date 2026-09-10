@@ -49,7 +49,7 @@ class DashboardController extends Controller
             $trend[] = [
                 'date' => $d,
                 'clicks' => (int) ($clicksByDay[$d] ?? 0),
-                'revenue' => (float) ($revenueByDay[$d] ?? 0),
+                'revenue' => 0,
             ];
         }
 

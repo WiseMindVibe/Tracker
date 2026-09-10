@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Click extends Model
 {
@@ -49,5 +50,10 @@ class Click extends Model
     public function offer()
     {
         return $this->belongsTo(Offer::class);
+    }
+
+    public function conversionEvents(): HasMany
+    {
+        return $this->hasMany(ConversionEvent::class);
     }
 }

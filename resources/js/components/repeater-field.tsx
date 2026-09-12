@@ -34,7 +34,7 @@ export default function RepeaterField({ relation, label, fields, min, value, onC
     return (
         <div>
             <label className="block text-sm font-medium text-muted-foreground mb-1">
-                {label} 
+                {label}
                 {min > 0 && (<span className="text-destructive">*</span>)}
             </label>
 

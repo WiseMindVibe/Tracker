@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\Api\ClickRedirectionController;
-use App\Http\Controllers\Api\PostbackController;
 use App\Http\Controllers\ModuleController;
 use App\Support\Countries\CountryRepository;
 use Illuminate\Http\Request;
@@ -12,7 +11,6 @@ Route::get('/user', function (Request $request) {
 })->middleware('auth:sanctum');
 
 Route::patch('clicks/{click_id}/status', [ClickRedirectionController::class, 'updateStatus']);
-
 
 Route::get('/api/m/{module}/table', [ModuleController::class, 'table']);
 

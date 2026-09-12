@@ -6,9 +6,9 @@ use App\Modules\Support\TrackingLinkBuilder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Str;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class Campaign extends Model
 {
@@ -25,6 +25,9 @@ class Campaign extends Model
         static::creating(function (Campaign $campaign) {
             if (empty($campaign->uuid)) {
                 $campaign->uuid = (string) Str::uuid();
+            }
+            if (empty($campign->fallback_url)) {
+                $campaign->fallback_url = 'https://google.com';
             }
         });
     }
@@ -52,7 +55,7 @@ class Campaign extends Model
     protected function trackingLink(): Attribute
     {
         return Attribute::get(
-            fn() => TrackingLinkBuilder::build(
+            fn () => TrackingLinkBuilder::build(
                 $this->uuid,
                 $this->trafficAccount?->trafficCatalog?->slug
             )

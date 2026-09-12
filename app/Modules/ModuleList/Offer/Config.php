@@ -8,7 +8,6 @@ use App\Models\Offer;
 use App\Modules\ModuleConfig;
 use App\Modules\Support\Actions\CreateAction;
 use App\Modules\Support\Actions\EditAction;
-use App\Modules\Support\Columns\BadgeColumn;
 use App\Modules\Support\Columns\CountColumn;
 use App\Modules\Support\Columns\RelationColumn;
 use App\Modules\Support\Columns\TextColumn;
@@ -24,7 +23,7 @@ class Config extends ModuleConfig
         return [
             'page' => 'Offers',
             'header' => 'Offers',
-            'header_s' => 'Offer'
+            'header_s' => 'Offer',
         ];
     }
 
@@ -39,7 +38,7 @@ class Config extends ModuleConfig
             columns: [
                 new TextColumn('id', 'ID'),
                 new RelationColumn('blog', 'domain', 'Blog'),
-                new RelationColumn('affiliateAccount.affiliateCatalog', 'name', 'Affiliate Network'), 
+                new RelationColumn('affiliateAccount.affiliateCatalog', 'name', 'Affiliate Network'),
                 new TextColumn('name', 'Name'),
                 new TextColumn('type', 'Type'),
                 new TextColumn('merchant_id', 'Merchant ID'),
@@ -55,12 +54,12 @@ class Config extends ModuleConfig
                 new SelectFilter('status', ['active', 'inactive']),
             ],
             actions: [
-                new CreateAction(),
-                new EditAction(),
+                new CreateAction,
+                new EditAction,
             ],
             defaultSort: [
                 'column' => 'id',
-                'direction' => 'desc'
+                'direction' => 'desc',
             ]
         );
     }
@@ -74,13 +73,13 @@ class Config extends ModuleConfig
                 type: 'select',
                 placeholder: 'Choose Affiliate Network',
                 options: AffiliateAccount::query()
-                ->with('affiliateCatalog')
-                ->get()
-                ->mapWithKeys(fn ($account) => [
-                    $account->id => $account->affiliateCatalog?->name ?? "Account #{$account->id}",
-                ])
-                ->toArray(),
-                ),
+                    ->with('affiliateCatalog')
+                    ->get()
+                    ->mapWithKeys(fn ($account) => [
+                        $account->id => $account->affiliateCatalog?->name ?? "Account #{$account->id}",
+                    ])
+                    ->toArray(),
+            ),
             new Field(
                 field: 'blog_id',
                 label: 'Blog',
@@ -104,7 +103,7 @@ class Config extends ModuleConfig
             ),
             new Field(
                 field: 'merchant_id',
-                label: 'Merchant ID', //label is depended on affiliate, yieldkit => Advertiser ID, Oponia => Shop ID
+                label: 'Merchant ID', // label is depended on affiliate, yieldkit => Advertiser ID, Oponia => Shop ID
                 type: 'text',
             ),
             new Field(
@@ -112,7 +111,7 @@ class Config extends ModuleConfig
                 label: 'Country',
                 type: 'country',
                 placeholder: 'Choose A Country',
-                options: collect(config('countries'))->map(fn($c) => [
+                options: collect(config('countries'))->map(fn ($c) => [
                     'value' => $c['code'],
                     'label' => $c['name'],
                     'aliases' => $c['aliases'] ?? [],
@@ -146,10 +145,10 @@ class Config extends ModuleConfig
                 relation: 'articles',
                 label: 'Articles URLs',
                 fields: [
-                    new Field(field: 'article_url', label: 'Article URL', type: 'url', placeholder: 'https://...', options: [], default:null, required: false),
+                    new Field(field: 'article_url', label: 'Article URL', type: 'url', placeholder: 'https://...', options: [], default: null, required: false),
                 ],
                 min: 0,
-                ),
+            ),
         ];
     }
 }

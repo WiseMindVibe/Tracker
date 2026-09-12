@@ -2,20 +2,19 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use App\Models\Campaign;
 use App\Models\Click;
 use App\Models\ClicksRedirections;
+use App\Services\Traffics\TrafficSourceCampaignCloser;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Support\Facades\Crypt;
-
-use function Pest\Laravel\json;
+use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class RedirectController extends Controller
 {
     public function handle(Request $request)
     {
-        $debug = true;
+        $debug = false;
 
         // Identify valid campaign
         $campaignUuid = $request->query('campaign_uuid');
@@ -23,44 +22,46 @@ class RedirectController extends Controller
         $campaign = $campaignUuid
             ? Campaign::where('uuid', $campaignUuid)->where('status', 'active')->first()
             : null;
-        if (!$campaign) {
+        if (! $campaign) {
             abort(404);
         }
 
-        //SafeRedirect URL
+        // SafeRedirect URL
         $fallbackURL = $campaign->fallback_url;
 
         // Identiy traffic campaign
         if ($request->filled('campaign_id')) {
             $trafficCampaignId = $campaign->trafficIds()
                 ->where('traffic_campaign_id', $request->query('campaign_id'))
-                ->value('id') ?? null;
+                ->value('id') ?? $request->query('campaign_id');
         }
 
         // Choose a random offer from the campaign BASED ON WEIGHT SELECTION
         $campaignOffer = $this->pickEligibleOffer($campaign);
 
-        if (!$campaignOffer) {
-            if (!$debug)
+        if (! $campaignOffer) {
+            (new TrafficSourceCampaignCloser)->close($campaign);
+
+            if (! $debug) {
                 return $this->safeRedirect($fallbackURL);
-            else
-                return "No Campaign Offer Found, Send request to traffic source to close campaign";
+            }
         }
 
         // Check if click's country matchs offer country
         $country = $request->query('country');
         if (strtolower($campaignOffer->offer->country) !== strtolower($country)) {
-            if (!$debug)
+            if (! $debug) {
                 return $this->safeRedirect($fallbackURL);
-            else
-                return "Campign Country MISMATCH! Got: " . $country . ". Expected: " . $campaignOffer->offer->country;
+            } else {
+                return 'Campign Country MISMATCH! Got: '.$country.'. Expected: '.$campaignOffer->offer->country;
+            }
         }
 
         // Receive paramerters from the traffic source
         // & Generate A click_id
         $click = new Click([
             'sub_id' => $request->query('SUB_ID'),
-            'click_id' => (string) \Illuminate\Support\Str::uuid(),
+            'click_id' => (string) Str::uuid(),
             'campaign_id' => $campaign->id,
             'offer_id' => $campaignOffer?->offer->id,
             'traffic_campaign_id' => $trafficCampaignId,
@@ -84,7 +85,7 @@ class RedirectController extends Controller
         ]);
 
         // Depends on affiliate's blog redirect rate
-        $blogRedirectRate = (int)$campaignOffer->offer->affiliateAccount->affiliateCatalog->blog_redirect_rate;
+        $blogRedirectRate = (int) $campaignOffer->offer->affiliateAccount->affiliateCatalog->blog_redirect_rate;
 
         // Send traffic directly to affiliate ( Blog Redirect Rate = 0% )
         if ($blogRedirectRate === 0) {
@@ -109,12 +110,12 @@ class RedirectController extends Controller
             $click->save();
 
             // Grab these:
-            /// - Click ID
-            /// - Affiliate Link
-            /// - Affiliate -> Token
-            /// - Affiliate -> Blog Redirect Rate
-            /// - Blog -> Domain
-            /// - Blog -> Buffer URL
+            // / - Click ID
+            // / - Affiliate Link
+            // / - Affiliate -> Token
+            // / - Affiliate -> Blog Redirect Rate
+            // / - Blog -> Domain
+            // / - Blog -> Buffer URL
 
             $payload = [
                 'click_id' => $click->click_id,
@@ -129,26 +130,26 @@ class RedirectController extends Controller
             );
 
             // Send traffic to Blog Domain with affiliate link, affiliate tokem, blog's buffer url
-            $blogURL = $campaignOffer->offer->blog->domain . '?ref=' . urlencode($reference);
+            $blogURL = $campaignOffer->offer->blog->domain.'?ref='.urlencode($reference);
 
             $campaignOffer->increment('current_views');
+
             return $this->safeRedirect($blogURL);
             // + On the blog's domain send traffic to buffer, return to blog, check for saved cookie, send to affiliate link with all parameters
         }
     }
 
-
     // Choose a random offer from the campaign BASED ON WEIGHT SELECTION
-    //// ~ If campaign's cap reached -> stop request to traffic campaign id & send the click to a fallback URL
+    // // ~ If campaign's cap reached -> stop request to traffic campaign id & send the click to a fallback URL
     private function pickEligibleOffer(Campaign $campaign)
     {
-        /// - Check if cap > current views    
+        // / - Check if cap > current views
         $campaignOffers = $campaign->offers()
             ->whereColumn('cap_views', '>', 'current_views')
             ->with('offer')
             ->get()
-            /// - Check if offer is active
-            ->filter(fn($campaignOffer) => $campaignOffer->offer?->status === 'active');
+            // / - Check if offer is active
+            ->filter(fn ($campaignOffer) => $campaignOffer->offer?->status === 'active');
 
         if ($campaignOffers->isEmpty()) {
             return null;
@@ -178,6 +179,5 @@ class RedirectController extends Controller
         return redirect()->away($url);
     }
     // Increase offer's current views by +1
-
 
 }

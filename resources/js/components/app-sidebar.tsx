@@ -1,5 +1,5 @@
 import { Link } from '@inertiajs/react';
-import { ArrowLeftRightIcon, BellIcon, BookOpen, Building2, Building2Icon, FolderGit2, HousePlug, HousePlugIcon, LayoutGrid, MegaphoneIcon, NewspaperIcon, RadioTowerIcon, StoreIcon, TagsIcon, UserRoundIcon } from 'lucide-react';
+import { ArrowLeftRightIcon, BarChart3, BellIcon, BookOpen, Building2, Building2Icon, FolderGit2, HousePlug, HousePlugIcon, LayoutGrid, MegaphoneIcon, NewspaperIcon, RadioTowerIcon, StoreIcon, TagsIcon, UserRoundIcon } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
@@ -24,6 +24,11 @@ const mainNavItems: NavItem[] = [
         title: 'Dashboard',
         href: '/dashboard',
         icon: LayoutGrid,
+    },
+    {
+        title: 'Reporting',
+        href: '/reporting',
+        icon: BarChart3,
     },
 ];
 

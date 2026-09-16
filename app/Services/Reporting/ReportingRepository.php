@@ -32,7 +32,7 @@ final class ReportingRepository
      *
      * @var list<string>
      */
-    public const CONVERSION_STATUSES = ['open', 'confirmed', 'rejected', 'paid', 'delayed'];
+    public const CONVERSION_STATUSES = ['open', 'confirmed', 'rejected', 'paid'];
 
     /**
      * @param  list<int>|null  $allowedOfferIds  Offers the current user may see. Null = no offer restriction. Empty = sees nothing.
@@ -84,6 +84,7 @@ final class ReportingRepository
             $select[] = DB::raw("COALESCE(SUM(CASE WHEN LOWER(cv.status) = '{$status}' THEN 1 ELSE 0 END), 0) AS {$status}_conversions");
             $select[] = DB::raw("COALESCE(SUM(CASE WHEN LOWER(cv.status) = '{$status}' THEN cv.commission ELSE 0 END), 0) AS {$status}_conversions_sum");
         }
+        $select[] = DB::raw('COALESCE(SUM(cv.loss), 0) AS loss');
 
         $rows = $query
             ->select($select)
@@ -126,6 +127,7 @@ final class ReportingRepository
             $select[] = DB::raw("COALESCE(SUM(CASE WHEN LOWER(cv.status) = '{$status}' THEN 1 ELSE 0 END), 0) AS {$status}_conversions");
             $select[] = DB::raw("COALESCE(SUM(CASE WHEN LOWER(cv.status) = '{$status}' THEN cv.commission ELSE 0 END), 0) AS {$status}_conversions_sum");
         }
+        $select[] = DB::raw('COALESCE(SUM(cv.loss), 0) AS loss');
 
         $row = $query->select($select)->first();
 
@@ -218,8 +220,10 @@ final class ReportingRepository
 
     private function joinConversions(Builder $query): void
     {
-        $query->join('conversions_events as cv', function ($join) {
-            $join->on('cv.click_id', '=', 'c.id')
+        $query->join('conversions_events as ce', function ($join) {
+            $join->on('ce.click_id', '=', 'c.id');
+        })->join('conversions as cv', function ($join) {
+            $join->on('cv.conversion_event_id', '=', 'ce.id')
                 ->whereIn(DB::raw('LOWER(cv.status)'), self::CONVERSION_STATUSES);
         });
     }

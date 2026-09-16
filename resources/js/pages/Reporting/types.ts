@@ -16,8 +16,7 @@ export interface ReportRowData {
     rejected_conversions_sum: number;
     paid_conversions: number;
     paid_conversions_sum: number;
-    delayed_conversions: number;
-    delayed_conversions_sum: number;
+    loss: number;
     revenue: number;
     spent: number;
     profit: number;

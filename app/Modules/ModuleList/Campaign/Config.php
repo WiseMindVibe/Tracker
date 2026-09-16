@@ -3,22 +3,19 @@
 namespace App\Modules\ModuleList\Campaign;
 
 use App\Models\Campaign;
-use App\Models\CampaignOffer;
-use App\Models\CampaignTrafficId;
 use App\Models\Offer;
 use App\Models\TrafficAccount;
 use App\Modules\ModuleConfig;
 use App\Modules\Support\Actions\CreateAction;
 use App\Modules\Support\Actions\EditAction;
 use App\Modules\Support\Columns\ChipListColumn;
+use App\Modules\Support\Columns\ProgressColumn;
 use App\Modules\Support\Columns\RelationColumn;
 use App\Modules\Support\Columns\TextColumn;
-use App\Modules\Support\Columns\ProgressColumn;
 use App\Modules\Support\Field\Field;
 use App\Modules\Support\Field\Repeater;
 use App\Modules\Support\Filters\SelectFilter;
 use App\Modules\Support\Table\Table;
-use Illuminate\Database\Eloquent\Builder;
 
 class Config extends ModuleConfig
 {
@@ -27,7 +24,7 @@ class Config extends ModuleConfig
         return [
             'page' => 'Campaigns',
             'header' => 'Campaigns',
-            'header_s' => 'Campaign'
+            'header_s' => 'Campaign',
         ];
     }
 
@@ -43,7 +40,14 @@ class Config extends ModuleConfig
                 new TextColumn('id', 'ID'),
                 new TextColumn('is_tester', 'Tester'),
                 new TextColumn('name', 'Name'),
-                new ProgressColumn('offers', 'current_views', 'cap_views', 'Views Progress'),
+                new ProgressColumn(
+                    'offers',
+                    'offers',
+                    'current_views',
+                    'cap_views',
+                    'Views Progress',
+                    true
+                ),
                 new ChipListColumn('trafficIds', 'traffic_campaign_id', 'Traffic Campaign IDs'),
                 new TextColumn('country', 'Country'),
                 new TextColumn('tracking_link', 'Tracking Link'),
@@ -57,12 +61,12 @@ class Config extends ModuleConfig
                 new SelectFilter('status', ['active', 'inactive']),
             ],
             actions: [
-                new CreateAction(),
-                new EditAction(),
+                new CreateAction,
+                new EditAction,
             ],
             defaultSort: [
                 'column' => 'id',
-                'direction' => 'desc'
+                'direction' => 'desc',
             ]
         );
     }
@@ -92,7 +96,7 @@ class Config extends ModuleConfig
                 field: 'country',
                 label: 'Country',
                 type: 'country',
-                options: collect(config('countries'))->map(fn($c) => [
+                options: collect(config('countries'))->map(fn ($c) => [
                     'value' => $c['code'],
                     'label' => $c['name'],
                     'aliases' => $c['aliases'] ?? [],
@@ -112,7 +116,7 @@ class Config extends ModuleConfig
                 options: TrafficAccount::query()
                     ->with('trafficCatalog')
                     ->get()
-                    ->mapWithKeys(fn($account) => [
+                    ->mapWithKeys(fn ($account) => [
                         $account->id => $account->trafficCatalog?->name ?? "Account #{$account->id}",
                     ])
                     ->toArray(),

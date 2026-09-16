@@ -1,14 +1,27 @@
 import { useEffect, useState } from 'react';
 import { Head, router } from '@inertiajs/react';
 
+import PaginationBar from '@/components/pagination-bar';
+import SearchInput from '@/components/search-input';
+
+type PaginationLink = { url: string | null; label: string; active: boolean };
+
 type NotificationRow = {
     id: number;
     click_id: string | null;
     click_pk: number | null;
+    offer: string | null;
+    campaign: string | null;
+    traffic_campaign_id: string | null;
     affiliate: string | null;
     commission_id: string | null;
     status: string | null;
     commission: string | null;
+    final_commission: number | null;
+    accumulated_commission: number | null;
+    loss: number | null;
+    click_commission: number | null;
+    click_loss: number | null;
     currency: string | null;
     event_type: string | null;
     is_read: boolean;
@@ -39,8 +52,13 @@ type ConversionEvent = {
 type Props = {
     notifications: {
         data: NotificationRow[];
+        links: PaginationLink[];
+        from: number | null;
+        to: number | null;
+        total: number;
     };
     unreadCount: number;
+    search?: string | null;
 };
 
 type Theme = 'light' | 'dark';
@@ -143,7 +161,7 @@ function ThemeToggle({ theme, onToggle }: { theme: Theme; onToggle: () => void }
     );
 }
 
-export default function Index({ notifications, unreadCount }: Props) {
+export default function Index({ notifications, unreadCount, search }: Props) {
     const [theme, toggleTheme] = useTheme();
     const [activeClick, setActiveClick] = useState<{ pk: number; label: string | null } | null>(null);
     const [events, setEvents] = useState<ConversionEvent[]>([]);
@@ -222,7 +240,7 @@ export default function Index({ notifications, unreadCount }: Props) {
             <Head title="Notifications" />
 
             <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-                <div className="mx-auto max-w-[1400px] px-6 py-10">
+                <div className="mx-auto max-w-[1800px] px-6 py-10">
                     <div className="mb-6 flex items-center justify-between">
                         <div>
                             <h1 className="text-lg font-semibold tracking-tight">Notifications</h1>
@@ -242,16 +260,25 @@ export default function Index({ notifications, unreadCount }: Props) {
                             <ThemeToggle theme={theme} onToggle={toggleTheme} />
                         </div>
                     </div>
+<div className="mb-4">
+    <SearchInput initialValue={search ?? ''} placeholder="Search by click ID, commission ID, or offer name..." />
+</div>
 
-                    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                        <table className="w-full border-collapse text-sm">
+                    <div className="overflow-hidden mt-3 overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                    <table className="w-max min-w-full table-auto text-sm">
                             <thead>
                                 <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium text-slate-500 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400">
                                     <th className="px-4 py-3">Click ID</th>
+                                    <th className="px-4 py-3">Offer</th>
+                                    <th className="px-4 py-3">Campaign</th>
+                                    <th className="px-4 py-3">Traffic Campaign</th>
                                     <th className="px-4 py-3">Affiliate</th>
                                     <th className="px-4 py-3">Commission ID</th>
                                     <th className="px-4 py-3">Status</th>
                                     <th className="px-4 py-3">Commission</th>
+                                    <th className="px-4 py-3">Final</th>
+                                    <th className="px-4 py-3">Click total</th>
+                                    <th className="px-4 py-3">Loss</th>
                                     <th className="px-4 py-3">Event type</th>
                                     <th className="px-4 py-3">Read</th>
                                     <th className="px-4 py-3">Read at</th>
@@ -272,41 +299,59 @@ export default function Index({ notifications, unreadCount }: Props) {
                                 {notifications.data.map((row) => (
                                     <tr
                                         key={row.id}
-                                        className={`border-b border-slate-100 last:border-0 hover:bg-slate-50 dark:border-slate-800/60 dark:hover:bg-slate-800/40 ${
+                                        className={`border-b border-slate-100 last:border-0 hover:bg-slate-50 dark:border-slate-800/60 dark:hover:bg-slate-800/40 max-w-[220px] truncate ${
                                             row.is_read ? '' : 'bg-indigo-50/40 dark:bg-indigo-400/[0.04]'
                                         }`}
                                     >
-                                        <td className="px-4 py-3 font-mono text-[13px] text-slate-700 dark:text-slate-300">
+                                        <td className="px-4 py-3 font-mono text-[13px] text-slate-700 dark:text-slate-300 max-w-[220px] truncate">
                                             {row.click_id ?? '—'}
                                         </td>
-                                        <td className="px-4 py-3 text-slate-600 dark:text-slate-400">
+                                        <td className="px-4 py-3 font-mono text-[13px] text-slate-700 dark:text-slate-300 max-w-[220px] truncate">
+                                            {row.offer ?? '—'}
+                                        </td>
+                                        <td className="px-4 py-3 font-mono text-[13px] text-slate-700 dark:text-slate-300 max-w-[220px] truncate">
+                                            {row.campaign ?? '—'}
+                                        </td>
+                                        <td className="px-4 py-3 font-mono text-[13px] text-slate-700 dark:text-slate-300 max-w-[220px] truncate">
+                                            {row.traffic_campaign_id ?? '—'}
+                                        </td>
+                                        <td className="px-4 py-3 text-slate-600 dark:text-slate-400 max-w-[220px] truncate">
                                             {row.affiliate ?? '—'}
                                         </td>
-                                        <td className="px-4 py-3 font-mono text-[13px] text-slate-700 dark:text-slate-300">
+                                        <td className="px-4 py-3 font-mono text-[13px] text-slate-700 dark:text-slate-300 max-w-[220px] truncate">
                                             {row.commission_id ?? '—'}
                                         </td>
                                         <td className="px-4 py-3">
                                             <StatusBadge status={row.status} />
                                         </td>
-                                        <td className="px-4 py-3 tabular-nums">
+                                        <td className="px-4 py-3 tabular-nums max-w-[220px] truncate">
                                             {row.commission ?? '—'}
                                             {row.currency ? (
                                                 <span className="ml-1 text-xs text-slate-400 dark:text-slate-600">{row.currency}</span>
                                             ) : null}
                                         </td>
-                                        <td className="px-4 py-3 text-slate-600 dark:text-slate-400">
+                                        <td className="px-4 py-3 tabular-nums">
+                                            {row.final_commission !== null ? Number(row.final_commission).toFixed(2) : '—'}
+                                        </td>
+                                        <td className="px-4 py-3 tabular-nums">
+                                            {row.click_commission !== null ? Number(row.click_commission).toFixed(2) : '—'}
+                                        </td>
+                                        <td className="px-4 py-3 tabular-nums text-rose-700 dark:text-rose-300">
+                                            {row.loss !== null ? Number(row.loss).toFixed(2) : '0.00'}
+                                        </td>
+                                        <td className="px-4 py-3 text-slate-600 dark:text-slate-400 max-w-[220px] truncate">
                                             {row.event_type ?? '—'}
                                         </td>
-                                        <td className="px-4 py-3">
+                                        <td className="px-4 py-3 max-w-[220px] truncate">
                                             <ReadBadge isRead={row.is_read} />
                                         </td>
-                                        <td className="px-4 py-3 whitespace-nowrap text-xs text-slate-500 dark:text-slate-400">
+                                        <td className="px-4 py-3 whitespace-nowrap text-xs text-slate-500 dark:text-slate-400 max-w-[220px] truncate">
                                             {row.read_at ?? '—'}
                                         </td>
-                                        <td className="px-4 py-3 whitespace-nowrap text-xs text-slate-500 dark:text-slate-400">
+                                        <td className="px-4 py-3 whitespace-nowrap text-xs text-slate-500 dark:text-slate-400 max-w-[220px] truncate">
                                             {row.created_at ?? '—'}
                                         </td>
-                                        <td className="px-4 py-3 text-right">
+                                        <td className="px-4 py-3 text-right max-w-[220px] truncate">
                                             <button
                                                 type="button"
                                                 className="text-sm font-medium text-indigo-600 hover:text-indigo-700 disabled:cursor-not-allowed disabled:text-slate-300 dark:text-indigo-400 dark:hover:text-indigo-300 dark:disabled:text-slate-700"
@@ -320,7 +365,7 @@ export default function Index({ notifications, unreadCount }: Props) {
                                                 View
                                             </button>
                                         </td>
-                                        <td className="px-4 py-3 text-right">
+                                        <td className="px-4 py-3 text-right max-w-[220px] truncate">
                                             <button
                                                 type="button"
                                                 onClick={() => toggleRead(row.id)}
@@ -336,7 +381,7 @@ export default function Index({ notifications, unreadCount }: Props) {
                         </table>
                     </div>
 
-                    {/* wire up notifications.links here for pagination */}
+<PaginationBar links={notifications.links} from={notifications.from} to={notifications.to} total={notifications.total} />
                 </div>
             </div>
 

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\Commissions\CommissionSnapshotRefresher;
 use App\Services\Reporting\ReportingAccessScope;
 use App\Services\Reporting\ReportingRepository;
 use App\Services\Reporting\ReportingService;
@@ -42,7 +43,7 @@ final class ReportingController extends Controller
             'defaultDatePreset' => 'last7',
             'defaultDateFrom' => $today,
             'defaultDateTo' => $today,
-            'defaultGroupBy' => ['offer', 'campaign', 'os', 'broswer'],
+            'defaultGroupBy' => ['offer', 'campaign', 'os', 'browser'],
             'availableGroups' => self::AVAILABLE_GROUPS,
             'apiEndpoint' => route('reporting.report'),
         ]);
@@ -55,7 +56,7 @@ final class ReportingController extends Controller
         $service = new ReportingService(new ReportingRepository(
             $scope->allowedOfferIds($user),
             $scope->allowedCampaignIds($user),
-        ));
+        ), app(CommissionSnapshotRefresher::class));
 
         try {
             return response()->json($service->buildReport($request->all()));

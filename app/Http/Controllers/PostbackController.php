@@ -7,8 +7,10 @@ use App\Models\Click;
 use App\Models\Conversion;
 use App\Models\ConversionEvent;
 use App\Models\Notification;
+use App\Services\Commissions\CommissionCalculator;
 use App\Services\Postbacks\PostbackAdapterResolver;
-use Illuminate\Database\QueryException;
+use App\Services\Telegram\TelegramService;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -16,7 +18,10 @@ use Illuminate\Support\Facades\DB;
 class PostbackController extends Controller
 {
     public function __construct(
-        private PostbackAdapterResolver $adapterResolver
+        private PostbackAdapterResolver $adapterResolver,
+        private CommissionCalculator $commissionCalculator,
+        private TelegramService $telegramService,
+
     ) {}
 
     public function __invoke(Request $request, string $affiliateCatalog)
@@ -31,7 +36,7 @@ class PostbackController extends Controller
         if (
             blank($postback->clickId) ||
             blank($postback->commissionId) ||
-            blank($postback->commission) ||
+            is_null($postback->commission) ||
             blank($postback->status)
         ) {
             return response()->json([
@@ -42,17 +47,17 @@ class PostbackController extends Controller
 
         $click = Click::where('click_id', $postback->clickId)->first();
 
-        if (!$click) {
+        if (! $click) {
             return response()->json([
                 'success' => false,
-                'message' => 'Click not found.',
+                'message' => 'Unknown click.',
             ], 404);
         }
 
         // Serialize processing per (catalog, commission) so two near-simultaneous
         // postbacks for the same commission can't both pass the duplicate check
         // before either has committed its insert.
-        $lockKey = "postback:{$catalog->id}:{$postback->commissionId}";
+        $lockKey = "postback:{$catalog->id}:{$click->id}:{$postback->commissionId}:{$postback->eventId}";
         $lock = Cache::lock($lockKey, 10);
 
         try {
@@ -60,18 +65,59 @@ class PostbackController extends Controller
                 return $this->processPostback($catalog, $click, $postback);
             });
 
+            // Send Telegram notification for a new/meaningful postback.
+            // Duplicate postbacks do not create another Telegram message.
+            if (! $result['duplicate'] && $result['notify']) {
+                $conversion = $result['conversion'];
+                $event = $result['event'];
+
+                $offerName = $click->offer?->name ?? 'Unknown Offer';
+                $campaignName = $click->campaign?->name ?? 'Unknown Campaign';
+
+                $eventType = $postback->eventType ?? ' ? ';
+                $status = strtolower($event->status ?? '');
+
+                $statusDisplay = match ($status) {
+                    'open' => '🟡 OPEN 🟡',
+                    'confirmed' => '🔵 CONFIRMED 🔵',
+                    'paid' => '🟢 PAID 🟢',
+                    'rejected' => '🔴 REJECTED 🔴',
+                    default => '⚪ '.strtoupper($event->status ?? 'UNKNOWN'),
+                };
+
+                $message =
+                    '🔔 <b>!'.e($eventType).'! - '.$statusDisplay.' - '.e($offerName)."</b>\n\n".
+
+                    '💰 <b>Commission</b>    : '.
+                    number_format((float) $postback->commission, 2).
+                    ' ('.
+                    number_format((float) $conversion->commission, 2).
+                    ') '.
+                    e($conversion->currency ?? '')."\n".
+
+                    '🗣️ <b>Campaign</b>      : '.e($campaignName)."\n\n".
+
+                    '🪪 <b>Click ID</b>      : <code>'.e($click->click_id)."</code>\n".
+
+                    '🆔 <b>Commission ID</b> : <code>'.e($postback->commissionId)."</code>\n".
+                    '- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -';
+
+                $this->telegramService->send($message);
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => $result['duplicate']
                     ? 'Duplicate postback ignored.'
                     : 'Postback processed successfully.',
-                //'affiliate' => $catalog->slug,
-                //'transaction_id' => $result['conversion']->transaction_id,
-                //'event_id' => $result['event']->id,
-                //'duplicate' => $result['duplicate'],
-                //'notify' => $result['notify'],
+                'duplicate' => $result['duplicate'],
+                // 'affiliate' => $catalog->slug,
+                // 'transaction_id' => $result['conversion']->transaction_id,
+                // 'event_id' => $result['event']->id,
+                // 'duplicate' => $result['duplicate'],
+                // 'notify' => $result['notify'],
             ], 200, [], JSON_PRETTY_PRINT);
-        } catch (\Illuminate\Contracts\Cache\LockTimeoutException $e) {
+        } catch (LockTimeoutException $e) {
 
             report($e);
 
@@ -101,97 +147,83 @@ class PostbackController extends Controller
     ): array {
         return DB::transaction(function () use ($catalog, $click, $postback) {
 
+            // Same commission ID + same event ID = duplicate.
             $existingEvent = ConversionEvent::where('affiliate_catalog_id', $catalog->id)
                 ->where('click_id', $click->id)
                 ->where('commission_id', $postback->commissionId)
+                ->where('event_id', $postback->eventId)
                 ->latest('id')
                 ->first();
 
             if ($existingEvent) {
-
-                $sameStatus = $existingEvent->status === $postback->status;
-
-                $sameCommission = round((float) $existingEvent->commission, 2) ===
-                    round((float) $postback->commission, 2);
-
-                if ($sameStatus && $sameCommission) {
-                    return [
-                        'event' => $existingEvent,
-                        'conversion' => Conversion::where(
-                            'transaction_id',
-                            $catalog->id . '_' . $postback->commissionId
-                        )->first(),
-                        'duplicate' => true,
-                        'notify' => false,
-                    ];
-                }
+                return [
+                    'event' => $existingEvent,
+                    'conversion' => Conversion::where(
+                        'transaction_id',
+                        $catalog->id.'_'.$click->id.'_'.$postback->commissionId
+                    )->first(),
+                    'duplicate' => true,
+                    'notify' => false,
+                ];
             }
 
+            // Different event ID = new event.
             $notify = true;
 
-            if ($existingEvent) {
-                $statusChanged = $existingEvent->status !== $postback->status;
+            $event = ConversionEvent::create([
+                'click_id' => $click->id,
+                'affiliate_catalog_id' => $catalog->id,
+                'commission_id' => $postback->commissionId,
+                'event_id' => $postback->eventId,
+                'event_type' => $postback->eventType,
+                'status' => $postback->status,
+                'commission' => $postback->commission,
+                'currency' => $postback->currency,
+                'created_at' => now(),
+            ]);
 
-                $commissionDifference = abs(
-                    (float) $postback->commission - (float) $existingEvent->commission
-                );
+            $transactionId = $catalog->id.'_'.$click->id.'_'.$postback->commissionId;
 
-                $commissionChangedMeaningfully = $commissionDifference >= 0.1;
+            $conversion = Conversion::where(
+                'transaction_id',
+                $transactionId
+            )->first();
 
-                $notify = $statusChanged || $commissionChangedMeaningfully;
-            }
+            $events = ConversionEvent::where('affiliate_catalog_id', $catalog->id)
+                ->where('click_id', $click->id)
+                ->where('commission_id', $postback->commissionId)
+                ->get();
 
-            try {
-                $event = ConversionEvent::create([
-                    'click_id' => $click->id,
-                    'affiliate_catalog_id' => $catalog->id,
-                    'commission_id' => $postback->commissionId,
-                    'event_id' => $postback->eventId,
-                    'event_type' => $postback->eventType,
-                    'status' => $postback->status,
-                    'commission' => $postback->commission,
-                    'currency' => $postback->currency,
-                    'created_at' => now(),
-                ]);
-            } catch (QueryException $e) {
-                // 23000 = integrity constraint violation (unique index hit).
-                // Belt-and-suspenders: the lock should already prevent this,
-                // but if it ever races or expires, fall back to duplicate handling.
-                if ($e->getCode() === '23000') {
-                    $event = ConversionEvent::where('affiliate_catalog_id', $catalog->id)
-                        ->where('click_id', $click->id)
-                        ->where('commission_id', $postback->commissionId)
-                        ->where('status', $postback->status)
-                        ->where('commission', $postback->commission)
-                        ->latest('id')
-                        ->firstOrFail();
+            $snapshot = $this->commissionCalculator->calculate(
+                $catalog,
+                $events
+            );
 
-                    return [
-                        'event' => $event,
-                        'conversion' => Conversion::where(
-                            'transaction_id',
-                            $catalog->id . '_' . $postback->commissionId
-                        )->first(),
-                        'duplicate' => true,
-                        'notify' => false,
-                    ];
-                }
-
-                throw $e;
-            }
-
-            $transactionId = $catalog->id . '_' . $postback->commissionId;
-            $conversion = Conversion::where('transaction_id', $transactionId)->first();
-
-            if (!$conversion) {
+            if (! $conversion) {
                 $conversion = Conversion::create([
                     'conversion_event_id' => $event->id,
                     'transaction_id' => $transactionId,
+                    'commission_id' => $postback->commissionId,
+                    'commission' => $snapshot['value'],
+                    'status' => $event->status,
+                    'accumulated_commission' => $snapshot['accumulated'],
+                    'loss' => $snapshot['loss'],
+                    'calculation_mode' => $snapshot['mode'],
+                    'calculation_rule' => $snapshot['rule'],
+                    'events_count' => $snapshot['events_count'],
                     'currency' => $postback->currency,
                 ]);
             } else {
                 $conversion->update([
                     'conversion_event_id' => $event->id,
+                    'commission_id' => $postback->commissionId,
+                    'commission' => $snapshot['value'],
+                    'status' => $event->status,
+                    'accumulated_commission' => $snapshot['accumulated'],
+                    'loss' => $snapshot['loss'],
+                    'calculation_mode' => $snapshot['mode'],
+                    'calculation_rule' => $snapshot['rule'],
+                    'events_count' => $snapshot['events_count'],
                     'transaction_id' => $transactionId,
                     'currency' => $postback->currency,
                 ]);

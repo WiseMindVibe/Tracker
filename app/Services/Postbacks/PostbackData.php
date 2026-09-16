@@ -5,13 +5,13 @@ namespace App\Services\Postbacks;
 class PostbackData
 {
     public function __construct(
-        public readonly string $clickId,
+        public readonly ?string $clickId,
 
-        public readonly string $commissionId,
+        public readonly ?string $commissionId,
 
-        public readonly float $commission,
+        public readonly ?float $commission,
 
-        public readonly string $status,
+        public readonly ?string $status,
 
         public readonly string $currency,
 

@@ -33,7 +33,13 @@ interface Field {
 interface Repeater {
     relation: string;
     label: string;
-    fields: { field: string; label: string; type: string; placeholder?: string }[];
+    fields: {
+        field: string;
+        label: string;
+        type: string;
+        placeholder?: string;
+        options?: Record<string, string>;
+    }[];
     min: number;
 }
 
@@ -96,7 +102,7 @@ export default function Edit({
         ),
     };
 
-    const { data, setData, put, processing, errors } = useForm(initialData);
+    const { data, setData, put, processing, errors } = useForm<Record<string, any>>(initialData);
 
         function optionsFor(field: Field): Record<string, string> {
         const all = (field.options as Record<string, string>) ?? {};
@@ -198,7 +204,7 @@ export default function Edit({
                                     field={field.field}
                                     options={optionsFor(field)}
                                     value={data[field.field]}
-                                    placeholder={field.placeholder}
+                                    placeholder={field.placeholder ?? "Choose an option"}
                                     onChange={(value) => setData(field.field, value)}
                                     disabled={readOnly}
                                 />

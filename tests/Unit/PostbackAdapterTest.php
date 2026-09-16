@@ -1,11 +1,11 @@
 <?php
 
-use App\Services\Postbacks\OponiaPostbackAdapter;
-use App\Services\Postbacks\PostbackException;
-use App\Services\Postbacks\YieldKitPostbackAdapter;
+use App\Services\Postbacks\Adapters\OponiaPostbackAdapter;
+use App\Services\Postbacks\Adapters\YieldKitPostbackAdapter;
+use Illuminate\Http\Request;
 
 it('normalizes a YieldKit postback', function (): void {
-    $event = (new YieldKitPostbackAdapter)->normalize([
+    $event = (new YieldKitPostbackAdapter)->parse(Request::create('/postback/yieldkit', 'POST', [
         'EVENT_ID' => 'yield-event-1',
         'COMMISSION_ID' => 'yield-commission-1',
         'COMMISSION' => '4.25',
@@ -13,20 +13,18 @@ it('normalizes a YieldKit postback', function (): void {
         'EVENT_TYPE' => 'NEW',
         'STATE' => 'CONFIRMED',
         'MODIFIED_DATE' => '2026-09-04T12:00:00Z',
-    ]);
+    ]));
 
-    expect($event)->toMatchArray([
-        'external_event_id' => 'yield-event-1',
-        'commission_id' => 'yield-commission-1',
-        'click_reference' => 'click-uuid',
-        'commission' => '4.25',
-        'status' => 'CONFIRMED',
-        'currency' => 'EUR',
-    ]);
+    expect($event->eventId)->toBe('yield-event-1')
+        ->and($event->commissionId)->toBe('yield-commission-1')
+        ->and($event->clickId)->toBe('click-uuid')
+        ->and($event->commission)->toBe(4.25)
+        ->and($event->status)->toBe('CONFIRMED')
+        ->and($event->currency)->toBe('EUR');
 });
 
 it('normalizes an Oponia placement click reference', function (): void {
-    $event = (new OponiaPostbackAdapter)->normalize([
+    $event = (new OponiaPostbackAdapter)->parse(Request::create('/postback/oponia', 'POST', [
         'EVENT_ID' => 'oponia-event-1',
         'COMMISSION_ID' => 'oponia-commission-1',
         'COMMISSION' => '2.10',
@@ -35,22 +33,22 @@ it('normalizes an Oponia placement click reference', function (): void {
         'STATE' => 'confirmed',
         'CURRENCY' => 'EUR',
         'MODIFIED_DATE' => '2026-09-04T12:00:00+00:00',
-    ]);
+    ]));
 
-    expect($event)->toMatchArray([
-        'external_event_id' => 'oponia-event-1',
-        'click_reference' => 'click-uuid',
-        'status' => 'confirmed',
-        'event_type' => 'UPDATE',
-    ]);
+    expect($event->eventId)->toBe('oponia-event-1')
+        ->and($event->clickId)->toBe('click-uuid')
+        ->and($event->status)->toBe('CONFIRMED')
+        ->and($event->eventType)->toBe('UPDATE');
 });
 
-it('rejects a postback without a click reference', function (): void {
-    (new YieldKitPostbackAdapter)->normalize([
+it('leaves missing required postback fields nullable for controller validation', function (): void {
+    $event = (new YieldKitPostbackAdapter)->parse(Request::create('/postback/yieldkit', 'POST', [
         'EVENT_ID' => 'event-1',
         'COMMISSION_ID' => 'commission-1',
         'COMMISSION' => '1.00',
         'EVENT_TYPE' => 'NEW',
         'STATE' => 'OPEN',
-    ]);
-})->throws(PostbackException::class);
+    ]));
+
+    expect($event->clickId)->toBeNull();
+});

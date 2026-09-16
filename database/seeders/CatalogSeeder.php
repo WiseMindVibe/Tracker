@@ -19,120 +19,161 @@ class CatalogSeeder extends Seeder
         $this->TrafficSources();
     }
 
-    public function AffiliateNetworks()
+    public function AffiliateNetworks(): void
     {
         $this->Yieldkit();
         $this->Oponia();
     }
 
-    public function TrafficSources()
+    public function TrafficSources(): void
     {
         $this->PropellerAds();
         $this->HilltopAds();
         $this->Popcash();
     }
 
-    protected function Yieldkit()
+    protected function Yieldkit(): void
     {
+        $yieldkit = AffiliateCatalog::updateOrCreate(
+            ['slug' => 'yieldkit'],
+            [
+                'name' => 'Yieldkit',
+                'shortcut' => 'yk',
+                'affiliate_token' => 'yk_tag',
+                'offer_mode' => 'static',
+                'commission_mode' => 'absolute',
+                'merchant_id_label' => 'Advertiser ID',
+                'blog_redirect_rate' => 10,
+            ]
+        );
 
-        $yieldkit = AffiliateCatalog::factory()->create([
-            'name' => 'Yieldkit',
-            'slug' => 'yieldkit',
-            'shortcut' => 'yk',
-            'affiliate_token' => 'yk_tag',
-            'offer_mode' => 'static',
-            'commission_mode' => 'absolute',
-            'merchant_id_label' => 'Advertiser ID',
-            'blog_redirect_rate' => '10',
-        ]);
+        AffiliateFieldDefinition::updateOrCreate(
+            [
+                'affiliate_catalog_id' => $yieldkit->id,
+                'field_key' => 'api_key',
+            ],
+            [
+                'label' => 'API Key',
+            ]
+        );
 
-        AffiliateFieldDefinition::factory()->create([
-            'affiliate_catalog_id' => $yieldkit->id,
-            'label' => 'API Key',
-            'field_key' => 'api_key',
-        ]);
+        AffiliateFieldDefinition::updateOrCreate(
+            [
+                'affiliate_catalog_id' => $yieldkit->id,
+                'field_key' => 'api_secret',
+            ],
+            [
+                'label' => 'API Secret',
+            ]
+        );
 
-        AffiliateFieldDefinition::factory()->create([
-            'affiliate_catalog_id' => $yieldkit->id,
-            'label' => 'API Secret',
-            'field_key' => 'api_secret',
-        ]);
-        AffiliateFieldDefinition::factory()->create([
-            'affiliate_catalog_id' => $yieldkit->id,
-            'label' => 'Site ID',
-            'field_key' => 'site_id',
-        ]);
+        AffiliateFieldDefinition::updateOrCreate(
+            [
+                'affiliate_catalog_id' => $yieldkit->id,
+                'field_key' => 'site_id',
+            ],
+            [
+                'label' => 'Site ID',
+            ]
+        );
     }
 
-    protected function Oponia()
+    protected function Oponia(): void
     {
+        $oponia = AffiliateCatalog::updateOrCreate(
+            ['slug' => 'oponia'],
+            [
+                'name' => 'Oponia',
+                'shortcut' => 'op',
+                'affiliate_token' => 'placementId',
+                'offer_mode' => 'static',
+                'commission_mode' => 'absolute',
+                'merchant_id_label' => 'Shop ID',
+                'blog_redirect_rate' => 10,
+            ]
+        );
 
-        $oponia = AffiliateCatalog::factory()->create([
-            'name' => 'Oponia',
-            'slug' => 'oponia',
-            'shortcut' => 'op',
-            'affiliate_token' => 'placementId',
-            'offer_mode' => 'static',
-            'commission_mode' => 'absolute',
-            'merchant_id_label' => 'Shop ID',
-            'blog_redirect_rate' => '10',
-        ]);
+        AffiliateFieldDefinition::updateOrCreate(
+            [
+                'affiliate_catalog_id' => $oponia->id,
+                'field_key' => 'api_key',
+            ],
+            [
+                'label' => 'API Key',
+            ]
+        );
 
-        AffiliateFieldDefinition::factory()->create([
-            'affiliate_catalog_id' => $oponia->id,
-            'label' => 'API Key',
-            'field_key' => 'api_key',
-        ]);
-
-        AffiliateFieldDefinition::factory()->create([
-            'affiliate_catalog_id' => $oponia->id,
-            'label' => 'Publisher ID',
-            'field_key' => 'publisherId',
-        ]);
+        AffiliateFieldDefinition::updateOrCreate(
+            [
+                'affiliate_catalog_id' => $oponia->id,
+                'field_key' => 'publisherId',
+            ],
+            [
+                'label' => 'Publisher ID',
+            ]
+        );
     }
 
-    protected function PropellerAds()
+    protected function PropellerAds(): void
     {
-        $propellerAds = TrafficCatalog::factory()->create([
-            'name' => 'PropellerAds',
-            'slug' => 'propellerads',
-            'shortcut' => 'pro',
-        ]);
+        $propellerAds = TrafficCatalog::updateOrCreate(
+            ['slug' => 'propellerads'],
+            [
+                'name' => 'PropellerAds',
+                'shortcut' => 'pro',
+            ]
+        );
 
-        TrafficFieldDefinition::factory()->create([
-            'traffic_catalog_id' => $propellerAds->id,
-            'label' => 'API Key',
-            'field_key' => 'api_key',
-        ]);
+        TrafficFieldDefinition::updateOrCreate(
+            [
+                'traffic_catalog_id' => $propellerAds->id,
+                'field_key' => 'api_key',
+            ],
+            [
+                'label' => 'API Key',
+            ]
+        );
     }
 
-    protected function HilltopAds()
+    protected function HilltopAds(): void
     {
-        $HilltopAds = TrafficCatalog::factory()->create([
-            'name' => 'HilltopAds',
-            'slug' => 'hilltopads',
-            'shortcut' => 'ht',
-        ]);
+        $hilltopAds = TrafficCatalog::updateOrCreate(
+            ['slug' => 'hilltopads'],
+            [
+                'name' => 'HilltopAds',
+                'shortcut' => 'ht',
+            ]
+        );
 
-        TrafficFieldDefinition::factory()->create([
-            'traffic_catalog_id' => $HilltopAds->id,
-            'label' => 'API Key',
-            'field_key' => 'key',
-        ]);
+        TrafficFieldDefinition::updateOrCreate(
+            [
+                'traffic_catalog_id' => $hilltopAds->id,
+                'field_key' => 'key',
+            ],
+            [
+                'label' => 'API Key',
+            ]
+        );
     }
 
-    protected function Popcash()
+    protected function Popcash(): void
     {
-        $popcash = TrafficCatalog::factory()->create([
-            'name' => 'Popcash',
-            'slug' => 'popcash',
-            'shortcut' => 'pop',
-        ]);
+        $popcash = TrafficCatalog::updateOrCreate(
+            ['slug' => 'popcash'],
+            [
+                'name' => 'Popcash',
+                'shortcut' => 'pop',
+            ]
+        );
 
-        TrafficFieldDefinition::factory()->create([
-            'traffic_catalog_id' => $popcash->id,
-            'label' => 'API Key',
-            'field_key' => 'apikey',
-        ]);
+        TrafficFieldDefinition::updateOrCreate(
+            [
+                'traffic_catalog_id' => $popcash->id,
+                'field_key' => 'apikey',
+            ],
+            [
+                'label' => 'API Key',
+            ]
+        );
     }
 }

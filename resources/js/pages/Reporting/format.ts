@@ -3,7 +3,7 @@ const MONEY_KEYS = new Set([
     'confirmed_conversions_sum',
     'rejected_conversions_sum',
     'paid_conversions_sum',
-    'delayed_conversions_sum',
+    'loss',
     'revenue',
     'spent',
     'profit',
@@ -19,7 +19,6 @@ const INT_KEYS = new Set([
     'confirmed_conversions',
     'rejected_conversions',
     'paid_conversions',
-    'delayed_conversions',
 ]);
 
 export function formatCell(key: string, value: number | string | null | undefined): string {

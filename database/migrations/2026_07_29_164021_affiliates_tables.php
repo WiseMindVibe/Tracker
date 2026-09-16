@@ -23,7 +23,6 @@ return new class extends Migration
             $table->integer('blog_redirect_rate');
         });
 
-
         Schema::create('affiliate_field_definitions', function (Blueprint $table) {
             $table->id();
             $table->foreignId('affiliate_catalog_id')->constrained('affiliate_catalog')->restrictOnDelete();
@@ -43,13 +42,14 @@ return new class extends Migration
 
         Schema::create('affiliate_accounts_credentials', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('affiliate_account_id')->constrained('affiliate_accounts', 'id')->restrictOnDelete();
+            $table->foreignId('affiliate_account_id')->constrained('affiliate_accounts', 'id')->cascadeOnDelete();
             $table->string('label')->nullable();
             $table->string('key');
             $table->text('value')->nullable();
             $table->timestamps();
         });
     }
+
     /**
      * Reverse the migrations.
      */

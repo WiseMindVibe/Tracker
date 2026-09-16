@@ -88,34 +88,23 @@ class RedirectController extends Controller
         $blogRedirectRate = (int) $campaignOffer->offer->affiliateAccount->affiliateCatalog->blog_redirect_rate;
 
         // Send traffic directly to affiliate ( Blog Redirect Rate = 0% )
-        if ($blogRedirectRate === 0) {
-            // + Click redirection = direct
-            ClicksRedirections::create([
-                'click_id' => $click['click_id'],
-                'status' => 'direct',
-            ]);
-
-            // Save Data to clicks
-            $click->save();
-
-            // Send traffic directly to affiliate
-            return $this->safeRedirect($campaignOffer->offer->affiliate_link);
-        } else {
-            // + Click redirection = Tracker-Blog | Blog-Buffer | Buffer-Blog | Blog-Affiliate
+        if (rand(1, 100) <= $blogRedirectRate) {
+            // Redirect through blog
             ClicksRedirections::create([
                 'click_id' => $click['click_id'],
                 'status' => 'tracker-blog',
             ]);
+
             // Save Data to clicks
             $click->save();
 
             // Grab these:
-            // / - Click ID
-            // / - Affiliate Link
-            // / - Affiliate -> Token
-            // / - Affiliate -> Blog Redirect Rate
-            // / - Blog -> Domain
-            // / - Blog -> Buffer URL
+            // - Click ID
+            // - Affiliate Link
+            // - Affiliate -> Token
+            // - Affiliate -> Blog Redirect Rate
+            // - Blog -> Domain
+            // - Blog -> Buffer URL
 
             $payload = [
                 'click_id' => $click->click_id,
@@ -125,17 +114,27 @@ class RedirectController extends Controller
                 'buffer_url' => $campaignOffer->offer->blog->buffers->random()->buffer_url,
                 'status' => 'tracker-blog',
             ];
+
             $reference = base64_encode(
                 json_encode($payload)
             );
 
-            // Send traffic to Blog Domain with affiliate link, affiliate tokem, blog's buffer url
             $blogURL = $campaignOffer->offer->blog->domain.'?ref='.urlencode($reference);
 
             $campaignOffer->increment('current_views');
 
             return $this->safeRedirect($blogURL);
-            // + On the blog's domain send traffic to buffer, return to blog, check for saved cookie, send to affiliate link with all parameters
+        } else {
+            // Redirect directly to affiliate
+            ClicksRedirections::create([
+                'click_id' => $click['click_id'],
+                'status' => 'direct',
+            ]);
+
+            // Save Data to clicks
+            $click->save();
+
+            return $this->safeRedirect($campaignOffer->offer->affiliate_link);
         }
     }
 
@@ -178,6 +177,4 @@ class RedirectController extends Controller
     {
         return redirect()->away($url);
     }
-    // Increase offer's current views by +1
-
 }

@@ -1,14 +1,17 @@
 <?php
 
+use App\Models\User;
 use Inertia\Testing\AssertableInertia;
 
-describe('ResourceController', function () {
-    it('passes the configured resource title to the inertia page', function () {
-        $this->get('/resources/blogs')
+describe('Blog module', function () {
+    it('passes the configured module title to the inertia page', function () {
+        $this->actingAs(User::factory()->create());
+
+        $this->get('/m/blogs')
             ->assertOk()
             ->assertInertia(fn (AssertableInertia $page) => $page
-                ->component('Resource/index')
-                ->where('title', 'Blogs List')
+                ->component('Modules/Index')
+                ->where('titles.page', 'Blogs')
             );
     });
 });

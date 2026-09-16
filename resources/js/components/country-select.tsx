@@ -11,6 +11,7 @@ interface Props {
     options: CountryOption[];
     value: string;
     onChange: (value: string) => void;
+    disabled?: boolean;
 }
 
 function scoreCountry(search: string, country: CountryOption): number {
@@ -37,6 +38,7 @@ export default function CountrySelect({
     options,
     value,
     onChange,
+    disabled = false,
 }: Props) {
     const [search, setSearch] = useState('');
     const [isOpen, setIsOpen] = useState(false);
@@ -122,6 +124,7 @@ export default function CountrySelect({
         <div className="relative">
             <input
                 id={field}
+                disabled={disabled}
                 type="text"
                 value={search}
                 placeholder='Select A Country'

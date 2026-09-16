@@ -12,7 +12,7 @@ class OponiaPostbackAdapter implements PostbackAdapter
     {
         return new PostbackData(
 
-            clickId: $request->input('SUB_ID'),
+            clickId: $request->input('SUB_ID') ?? $request->input('placementId'),
 
             commissionId: $request->input('COMMISSION_ID'),
 
@@ -34,7 +34,6 @@ class OponiaPostbackAdapter implements PostbackAdapter
             modifiedDate: $request->input('MODIFIED_DATE'),
 
             advertiserSaleAmount: $request->input('SALES_AMOUNT'),
-
 
         );
     }

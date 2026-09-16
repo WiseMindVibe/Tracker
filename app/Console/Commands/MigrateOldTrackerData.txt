@@ -1,0 +1,973 @@
+<?php
+/**
+ * Tracker migration: old schema -> new schema
+ *
+ * Run from CLI on a machine that can reach BOTH databases:
+ *   php migrate_tracker.php            (runs every step in order, resumable)
+ *   php migrate_tracker.php clicks     (run just one step - see $STEPS below)
+ *
+ * SAFETY:
+ *  - Take a full backup/snapshot of the NEW database before running.
+ *  - Steps are resumable: big tables (clicks, clicks_redirections,
+ *    conversions) checkpoint their progress to migrate_checkpoint.json and
+ *    pick up where they left off if interrupted or re-run.
+ *  - Assumes SINGLE company/tenant (company_id = 1 everywhere).
+ *
+ * WHY SOME ROWS GET SKIPPED:
+ *  The old schema never enforced foreign keys on campaign_offers.campaign_id,
+ *  clicks.campaign_id, or conversions.click_id. That means the old data can
+ *  contain orphaned rows pointing at records that don't exist. The new
+ *  schema DOES enforce these constraints, so this script detects orphans
+ *  up front and either points them at a placeholder or skips + logs them,
+ *  instead of crashing partway through a multi-million-row import.
+ *
+ * REQUIRES MANUAL REVIEW AFTER RUNNING (search for "!!! REVIEW"):
+ *  - affiliate_catalog: affiliate_token / offer_mode / commission_mode /
+ *    merchant_id_label / blog_redirect_rate are placeholders. These control
+ *    live postback/integration behaviour and didn't exist in the old
+ *    schema, so they MUST be corrected per network before going live.
+ *  - conversions_events.status: migrated as a raw label of the old tinyint
+ *    (e.g. "raw_status_1") because the old schema never documented what
+ *    1 / 0 meant. Re-map these once you confirm the meaning.
+ *  - notifications -> conversions_events link is a best-effort match on
+ *    (click_id, event_id, event_type). Spot-check a sample after migrating.
+ */
+
+// ---------------------------------------------------------------------
+// CONFIG - fill these in
+// ---------------------------------------------------------------------
+$OLD_DB = [
+    'host' => '127.0.0.1',
+    'name' => 'tracker_old',
+    'user' => 'root',
+    'pass' => '',
+];
+
+$NEW_DB = [
+    'host' => '127.0.0.1',
+    'name' => 'tracker_new',
+    'user' => 'root',
+    'pass' => '',
+];
+
+$COMPANY_NAME = 'WiseMindVibe';
+
+$CHUNK_SIZE = 20000;                    // rows per batch for big tables
+$CHECKPOINT = __DIR__ . '/migrate_checkpoint.json'; // resumability file
+
+// Safety net: raise PHP's memory ceiling for this process. If your php.ini
+// has memory_limit locked down (some shared hosts do), this won't help and
+// you'll need to raise it in php.ini directly and restart the server.
+ini_set('memory_limit', '2048M');
+
+// ---------------------------------------------------------------------
+// SETUP
+// ---------------------------------------------------------------------
+function connect(array $c): PDO
+{
+    $pdo = new PDO(
+        "mysql:host={$c['host']};dbname={$c['name']};charset=utf8mb4",
+        $c['user'],
+        $c['pass'],
+        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+    );
+    $pdo->exec("SET SESSION sql_mode = ''");
+    return $pdo;
+}
+
+$old = connect($OLD_DB);
+$new = connect($NEW_DB);
+
+function loadCheckpoint(string $path): array
+{
+    if (!file_exists($path)) return [];
+    return json_decode(file_get_contents($path), true) ?: [];
+}
+function saveCheckpoint(string $path, array $data): void
+{
+    file_put_contents($path, json_encode($data));
+}
+$checkpoint = loadCheckpoint($CHECKPOINT);
+
+function slugify(string $s): string
+{
+    $s = strtolower(trim($s));
+    $s = preg_replace('/[^a-z0-9]+/', '-', $s);
+    return trim($s, '-');
+}
+
+function now(): string
+{
+    return date('Y-m-d H:i:s');
+}
+
+// ---------------------------------------------------------------------
+// STEP 1: company (single tenant)
+// ---------------------------------------------------------------------
+function migrateCompany(PDO $new, string $companyName): int
+{
+    $stmt = $new->query("SELECT id FROM companies LIMIT 1");
+    $existing = $stmt->fetchColumn();
+    if ($existing) return (int)$existing;
+
+    $new->prepare("INSERT INTO companies (id, name, slug, status, created_at, updated_at)
+                    VALUES (1, ?, ?, 'active', ?, ?)")
+        ->execute([$companyName, slugify($companyName), now(), now()]);
+    return 1;
+}
+
+// ---------------------------------------------------------------------
+// STEP 2: affiliate_catalog  (built from distinct affiliate_program values)
+//         !!! REVIEW: affiliate_token / offer_mode / commission_mode /
+//         merchant_id_label / blog_redirect_rate are PLACEHOLDERS.
+// ---------------------------------------------------------------------
+function migrateAffiliateCatalog(PDO $old, PDO $new): array
+{
+    $programs = $old->query("
+        SELECT DISTINCT affiliate_program
+        FROM affiliate_accounts
+        ORDER BY CASE
+            WHEN affiliate_program = 'YieldKit' THEN 1
+            WHEN affiliate_program = 'Oponia' THEN 2
+            ELSE 3
+        END
+    ")->fetchAll(PDO::FETCH_COLUMN);
+
+    $map = []; // affiliate_program string -> new affiliate_catalog.id
+    $insert = $new->prepare("INSERT INTO affiliate_catalog
+        (name, slug, shortcut, affiliate_token, offer_mode, commission_mode, merchant_id_label, blog_redirect_rate)
+        VALUES (?, ?, NULL, ?, 'static', 'absolute', 'Advertiser ID', 10)");
+
+    foreach ($programs as $name) {
+        $slug = slugify($name);
+        $existing = $new->prepare("SELECT id FROM affiliate_catalog WHERE slug = ?");
+        $existing->execute([$slug]);
+        $id = $existing->fetchColumn();
+        if (!$id) {
+            // Placeholder token - MUST be corrected per network before
+            // live postbacks will match correctly.
+            $insert->execute([$name, $slug, 'REVIEW_' . $slug . '_token']);
+            $id = $new->lastInsertId();
+        }
+        $map[$name] = (int)$id;
+    }
+    echo "Migrated " . count($programs) . " affiliate_catalog entries (REVIEW placeholders before going live)\n";
+    return $map;
+}
+
+// ---------------------------------------------------------------------
+// STEP 3: affiliate_accounts (+ credentials)
+// ---------------------------------------------------------------------
+function migrateAffiliateAccounts(PDO $old, PDO $new, array $catalogMap): void
+{
+    $rows = $old->query("SELECT * FROM affiliate_accounts")->fetchAll(PDO::FETCH_ASSOC);
+    $insertAcc = $new->prepare("INSERT INTO affiliate_accounts
+        (id, company_id, affiliate_catalog_id, status, created_at, updated_at)
+        VALUES (?, 1, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE id = id");
+
+    foreach ($rows as $r) {
+        $catalogId = $catalogMap[$r['affiliate_program']];
+        $status = $r['active'] ? 'active' : 'inactive';
+        $insertAcc->execute([$r['id'], $catalogId, $status, $r['created_at'], $r['updated_at']]);
+    }
+
+    $creds = $old->query("SELECT * FROM affiliate_account_credentials")->fetchAll(PDO::FETCH_ASSOC);
+    $insertCred = $new->prepare("INSERT INTO affiliate_accounts_credentials
+        (affiliate_account_id, label, `key`, value, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)");
+    foreach ($creds as $c) {
+        $insertCred->execute([
+            $c['affiliate_account_id'],
+            ucwords(str_replace('_', ' ', $c['field_key'])), // label guess
+            $c['field_key'],
+            $c['field_value'],
+            now(), now(),
+        ]);
+    }
+    echo "Migrated " . count($rows) . " affiliate_accounts, " . count($creds) . " credentials\n";
+}
+
+// ---------------------------------------------------------------------
+// STEP 4: traffic_catalog + traffic_accounts (+ credentials)
+// ---------------------------------------------------------------------
+function migrateTraffic(PDO $old, PDO $new): array
+{
+    $sources = $old->query("SELECT * FROM traffic_sources")->fetchAll(PDO::FETCH_ASSOC);
+    $accountMap = []; // old traffic_sources.id -> new traffic_accounts.id
+
+    $insertCatalog = $new->prepare("INSERT INTO traffic_catalog (name, slug, shortcut) VALUES (?, ?, NULL)");
+    $insertAccount = $new->prepare("INSERT INTO traffic_accounts
+        (id, company_id, traffic_catalog_id, status, created_at, updated_at)
+        VALUES (?, 1, ?, 'active', ?, ?)");
+    $insertCred = $new->prepare("INSERT INTO traffic_accounts_credentials
+        (traffic_account_id, label, `key`, value, created_at, updated_at)
+        VALUES (?, 'API Key', 'api_key', ?, ?, ?)");
+
+    foreach ($sources as $s) {
+        $slug = slugify($s['name']);
+        $existing = $new->prepare("SELECT id FROM traffic_catalog WHERE slug = ?");
+        $existing->execute([$slug]);
+        $catalogId = $existing->fetchColumn();
+        if (!$catalogId) {
+            $insertCatalog->execute([$s['name'], $slug]);
+            $catalogId = $new->lastInsertId();
+        }
+
+        // preserve original id so downstream FK mapping (campaigns) is trivial
+        $insertAccount->execute([$s['id'], $catalogId, $s['created_at'], $s['updated_at']]);
+        $insertCred->execute([$s['id'], $s['api_key'], now(), now()]);
+        $accountMap[$s['id']] = (int)$s['id'];
+    }
+    echo "Migrated " . count($sources) . " traffic_accounts\n";
+    return $accountMap;
+}
+
+// ---------------------------------------------------------------------
+// STEP 5: blogs (was websites) + blogs_buffers
+// ---------------------------------------------------------------------
+function migrateBlogs(PDO $old, PDO $new): array
+{
+    $sites = $old->query("SELECT * FROM websites")->fetchAll(PDO::FETCH_ASSOC);
+    $insert = $new->prepare("INSERT INTO blogs
+        (id, company_id, domain, main_geo, status, created_at, updated_at)
+        VALUES (?, 1, ?, ?, 'active', ?, ?)");
+    foreach ($sites as $s) {
+        $insert->execute([$s['id'], $s['domain'], $s['country'], $s['created_at'], $s['updated_at']]);
+    }
+    $validBlogIds = array_flip(array_column($sites, 'id'));
+
+    // blogs_buffers.blog_id was never FK-enforced in the old schema either.
+    $buffers = $old->query("SELECT * FROM websites_buffers")->fetchAll(PDO::FETCH_ASSOC);
+    $insertBuf = $new->prepare("INSERT INTO blogs_buffers
+        (blog_id, buffer_url, created_at, updated_at) VALUES (?, ?, ?, ?)");
+    $skipped = 0;
+    foreach ($buffers as $b) {
+        if (!isset($validBlogIds[$b['website_id']])) { $skipped++; continue; }
+        $insertBuf->execute([$b['website_id'], $b['buffer_url'], now(), now()]);
+    }
+    echo "Migrated " . count($sites) . " blogs, " . (count($buffers) - $skipped) . " blog buffers"
+        . ($skipped > 0 ? " ({$skipped} skipped - orphaned website_id)" : "") . "\n";
+
+    return $validBlogIds;
+}
+
+// ---------------------------------------------------------------------
+// STEP 6: offers (+ offers_articles)
+// ---------------------------------------------------------------------
+function migrateOffers(PDO $old, PDO $new, array $validBlogIds): array
+{
+    $validAffAccountIds = array_flip(array_column(
+        $old->query("SELECT id FROM affiliate_accounts")->fetchAll(PDO::FETCH_ASSOC), 'id'));
+
+    $offers = $old->query("SELECT * FROM offers")->fetchAll(PDO::FETCH_ASSOC);
+    $insert = $new->prepare("INSERT INTO offers
+        (id, affiliate_account_id, blog_id, name, type, merchant_id, country, affiliate_link,
+         is_tester, status, total_impressions, total_views, created_at, updated_at)
+        VALUES (?, ?, ?, ?, 'static', NULL, ?, ?, 0, 'active', 0, 0, ?, ?)");
+    $validOfferIds = [];
+    $skippedOffers = [];
+    foreach ($offers as $o) {
+        // old schema never enforced FKs on affiliate_program_id or website_id
+        if (!isset($validAffAccountIds[$o['affiliate_program_id']]) || !isset($validBlogIds[$o['website_id']])) {
+            $skippedOffers[] = $o['id'];
+            continue;
+        }
+        $insert->execute([
+            $o['id'], $o['affiliate_program_id'], $o['website_id'],
+            $o['name'], $o['country'], $o['affiliate_link'],
+            $o['created_at'], $o['updated_at'],
+        ]);
+        $validOfferIds[$o['id']] = true;
+    }
+
+    // offers_articles.offer_id was never FK-enforced in the old schema either.
+    $articles = $old->query("SELECT * FROM offers_articles")->fetchAll(PDO::FETCH_ASSOC);
+    $insertArt = $new->prepare("INSERT INTO offers_articles
+        (id, offer_id, article_url, created_at, updated_at) VALUES (?, ?, ?, ?, ?)");
+    $skippedArticles = 0;
+    foreach ($articles as $a) {
+        if (!isset($validOfferIds[$a['offer_id']])) { $skippedArticles++; continue; }
+        $insertArt->execute([$a['id'], $a['offer_id'], $a['article_url'], now(), now()]);
+    }
+
+    echo "Migrated " . count($validOfferIds) . " offers, " . (count($articles) - $skippedArticles) . " offer articles\n";
+    if ($skippedOffers) {
+        echo "Skipped " . count($skippedOffers) . " offers with orphaned affiliate_program_id/website_id "
+            . "(old offer ids: " . implode(',', $skippedOffers) . ")\n";
+    }
+    if ($skippedArticles > 0) {
+        echo "Skipped {$skippedArticles} offers_articles rows with orphaned offer_id\n";
+    }
+
+    return $validOfferIds;
+}
+
+// ---------------------------------------------------------------------
+// STEP 7: campaigns + campaigns_traffic_ids + campaigns_offers
+// Returns ['campaignToTrafficIdRow' => [...], 'orphanTrafficId' => int]
+// ---------------------------------------------------------------------
+function migrateCampaigns(PDO $old, PDO $new): array
+{
+    $campaigns = $old->query("SELECT * FROM campaigns")->fetchAll(PDO::FETCH_ASSOC);
+    $insert = $new->prepare("INSERT INTO campaigns
+        (id, uuid, traffic_account_id, name, country, is_tester, fallback_url, status,
+         impressions, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, NULL, 'active', 0, ?, ?)");
+    foreach ($campaigns as $c) {
+        $insert->execute([
+            $c['id'], $c['uuid'], $c['traffic_source_id'], $c['name'], $c['country'],
+            $c['tester'], $c['created_at'], $c['updated_at'],
+        ]);
+    }
+    $validCampaignIds = array_flip(array_column($campaigns, 'id'));
+
+    // campaigns_traffic_ids (was campaign_external_ids) - preserve id
+    $extIds = $old->query("SELECT * FROM campaign_external_ids")->fetchAll(PDO::FETCH_ASSOC);
+    $insertExt = $new->prepare("INSERT INTO campaigns_traffic_ids
+        (id, campaign_id, traffic_campaign_id, status, created_at, updated_at)
+        VALUES (?, ?, ?, 'active', ?, ?)");
+    $campaignToTrafficIdRow = []; // old campaign_id -> new campaigns_traffic_ids.id (first match)
+    $nextTrafficIdRowId = 0;
+    foreach ($extIds as $e) {
+        $insertExt->execute([$e['id'], $e['campaign_id'], $e['external_campaign_id'], now(), now()]);
+        if (!isset($campaignToTrafficIdRow[$e['campaign_id']])) {
+            $campaignToTrafficIdRow[$e['campaign_id']] = (int)$e['id'];
+        }
+        $nextTrafficIdRowId = max($nextTrafficIdRowId, (int)$e['id'] + 1);
+    }
+
+    // clicks.traffic_campaign_id is NOT NULL - any real campaign with no
+    // campaign_external_ids row still needs a traffic-id row to point to.
+    $insertPlaceholder = $new->prepare("INSERT INTO campaigns_traffic_ids
+        (id, campaign_id, traffic_campaign_id, status, created_at, updated_at)
+        VALUES (?, ?, 'UNKNOWN_MIGRATED', 'active', ?, ?)");
+    foreach ($campaigns as $c) {
+        if (!isset($campaignToTrafficIdRow[$c['id']])) {
+            $insertPlaceholder->execute([$nextTrafficIdRowId, $c['id'], now(), now()]);
+            $campaignToTrafficIdRow[$c['id']] = $nextTrafficIdRowId;
+            $nextTrafficIdRowId++;
+        }
+    }
+
+    // For clicks whose OLD campaign_id doesn't exist in campaigns at all
+    // (unenforced FK in the old schema), we can't point at any real
+    // campaign, so create ONE dedicated placeholder campaign + traffic-id
+    // row for that case. Those clicks get campaign_id = NULL (allowed) and
+    // traffic_campaign_id = this placeholder's traffic-id row.
+    $placeholderCampaignId = (int)$new->query("SELECT COALESCE(MAX(id),0)+1 FROM campaigns")->fetchColumn();
+    $anyTrafficAccountId = $new->query("SELECT id FROM traffic_accounts LIMIT 1")->fetchColumn();
+    $new->prepare("INSERT INTO campaigns
+        (id, uuid, traffic_account_id, name, country, is_tester, fallback_url, status, impressions, created_at, updated_at)
+        VALUES (?, ?, ?, 'MIGRATION_ORPHAN_PLACEHOLDER', 'US', 1, NULL, 'inactive', 0, ?, ?)")
+        ->execute([$placeholderCampaignId, bin2hex(random_bytes(16)), $anyTrafficAccountId, now(), now()]);
+    $new->prepare("INSERT INTO campaigns_traffic_ids
+        (id, campaign_id, traffic_campaign_id, status, created_at, updated_at)
+        VALUES (?, ?, 'MIGRATION_ORPHAN', 'active', ?, ?)")
+        ->execute([$nextTrafficIdRowId, $placeholderCampaignId, now(), now()]);
+    $orphanTrafficId = $nextTrafficIdRowId;
+
+    // campaigns_offers - old schema never enforced a FK on campaign_id here,
+    // so skip + log any row whose campaign_id doesn't exist.
+    $co = $old->query("SELECT * FROM campaign_offers")->fetchAll(PDO::FETCH_ASSOC);
+    $insertCo = $new->prepare("INSERT INTO campaigns_offers
+        (id, campaign_id, offer_id, current_impressions, current_views, cap_views, total_views,
+         created_at, updated_at)
+        VALUES (?, ?, ?, 0, ?, ?, 0, ?, ?)");
+    $skippedCo = [];
+    foreach ($co as $row) {
+        if (!isset($validCampaignIds[$row['campaign_id']])) {
+            $skippedCo[] = $row['id'];
+            continue;
+        }
+        $insertCo->execute([
+            $row['id'], $row['campaign_id'], $row['offer_id'],
+            $row['current_views'] ?? 0, $row['cap'],
+            $row['created_at'], $row['updated_at'],
+        ]);
+    }
+
+    echo "Migrated " . count($campaigns) . " campaigns, " . count($extIds) . " traffic-ids, "
+        . (count($co) - count($skippedCo)) . " campaign-offer links\n";
+    if ($skippedCo) {
+        echo "Skipped " . count($skippedCo) . " campaign_offers rows with orphaned campaign_id "
+            . "(old campaign_offers ids: " . implode(',', $skippedCo) . ")\n";
+    }
+
+    return [
+        'campaignToTrafficIdRow' => $campaignToTrafficIdRow,
+        'orphanTrafficId' => $orphanTrafficId,
+    ];
+}
+
+// ---------------------------------------------------------------------
+// STEP 8: clicks (CHUNKED - millions of rows expected)
+// ---------------------------------------------------------------------
+function migrateClicks(PDO $old, PDO $new, array $campaignToTrafficIdRow, int $orphanTrafficId, array $validOfferIds, int $chunkSize, array &$checkpoint, string $checkpointPath): void
+{
+    $lastId = $checkpoint['clicks_last_id'] ?? 0;
+    $orphanCampaignCount = 0;
+    $skippedOfferCount = 0;
+    $sampleSkippedOffer = $checkpoint['clicks_skipped_offer_sample'] ?? [];
+    $statusMap = ['INIT' => 'pending', 'BUFFER' => 'buffered', 'FINALIZED' => 'completed'];
+    $colCount = 26; // number of columns in the INSERT below - must match exactly
+
+    // Speed: disable FK/unique checks + autocommit for this bulk load on the
+    // NEW connection only. Restored right after.
+    $new->exec("SET foreign_key_checks = 0");
+    $new->exec("SET unique_checks = 0");
+    $new->exec("SET autocommit = 0");
+
+    while (true) {
+        // Speed: LEFT JOIN click_redirections here instead of a separate
+        // SELECT per row - avoids millions of extra round trips.
+        $stmt = $old->prepare("
+            SELECT c.*, cr.state AS redir_state
+            FROM clicks c
+            LEFT JOIN click_redirections cr ON cr.click_id = c.click_id
+            WHERE c.id > ? ORDER BY c.id ASC LIMIT ?");
+        $stmt->bindValue(1, $lastId, PDO::PARAM_INT);
+        $stmt->bindValue(2, $chunkSize, PDO::PARAM_INT);
+        $stmt->execute();
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if (!$rows) break;
+
+        // Speed: one multi-row INSERT per chunk instead of one execute() per row.
+        $placeholders = [];
+        $values = [];
+        foreach ($rows as $r) {
+            $lastId = (int)$r['id'];
+
+            // clicks.offer_id is NOT NULL + RESTRICT in the new schema, so an
+            // orphaned offer_id (old schema never enforced this FK) can't be
+            // patched - the whole click row has to be dropped and logged.
+            if (!isset($validOfferIds[$r['offer_id']])) {
+                $skippedOfferCount++;
+                if (count($sampleSkippedOffer) < 20) $sampleSkippedOffer[] = $r['id'];
+                continue;
+            }
+
+            $campaignId = $r['campaign_id'];
+            if (isset($campaignToTrafficIdRow[$campaignId])) {
+                $trafficCampaignId = $campaignToTrafficIdRow[$campaignId];
+            } else {
+                // orphaned campaign_id - old table never enforced this FK
+                $campaignId = null;
+                $trafficCampaignId = $orphanTrafficId;
+                $orphanCampaignCount++;
+            }
+
+            $status = $statusMap[$r['redir_state']] ?? 'pending';
+            $ip = $r['ip'] !== null ? inet_ntop($r['ip']) : null; // old ip is varbinary(16)
+
+            $placeholders[] = '(' . implode(',', array_fill(0, $colCount, '?')) . ')';
+            array_push($values,
+                $r['id'], '', $r['click_id'], $r['offer_id'], $campaignId, $trafficCampaignId, $status,
+                $r['country'], $r['region'], $r['language'], $r['device'], $r['OS'], $r['os_version'],
+                $r['browser'], $r['browser_version'], $r['connection_type'], $r['isp'], $r['carrier'],
+                $r['zone_id'], $r['subzone_id'], $r['useragent'], $r['user_activity'],
+                $ip, $r['cost'], $r['created_at'], $r['updated_at']
+            );
+        }
+
+        $sql = "INSERT INTO clicks
+            (id, sub_id, click_id, offer_id, campaign_id, traffic_campaign_id, status,
+             country, region, language, device, os, os_version, browser, browser_version,
+             connection_type, isp, carrier, zoneid, subzone_id, user_agent, user_activity,
+             ip_address, cost, created_at, updated_at)
+            VALUES " . implode(',', $placeholders);
+        if ($values) {
+            $new->prepare($sql)->execute($values);
+        }
+        $new->exec("COMMIT");
+
+        $checkpoint['clicks_last_id'] = $lastId;
+        $checkpoint['clicks_skipped_offer_sample'] = $sampleSkippedOffer;
+        saveCheckpoint($checkpointPath, $checkpoint);
+        echo "Clicks migrated up to id {$lastId} "
+            . "(orphaned campaign_id so far: {$orphanCampaignCount}, "
+            . "dropped for orphaned offer_id so far: {$skippedOfferCount})\n";
+
+        // Free this chunk's memory explicitly before pulling the next one -
+        // without this, PDO/mysqlnd buffers on Windows builds can build up
+        // gradually across hundreds of chunks and eventually exhaust the
+        // memory_limit even though each individual chunk is small.
+        $stmt->closeCursor();
+        unset($rows, $placeholders, $values, $stmt);
+        gc_collect_cycles();
+    }
+
+    $new->exec("SET foreign_key_checks = 1");
+    $new->exec("SET unique_checks = 1");
+    $new->exec("SET autocommit = 1");
+
+    if ($orphanCampaignCount > 0) {
+        echo "Note: {$orphanCampaignCount} clicks had an orphaned campaign_id and were pointed at "
+            . "the MIGRATION_ORPHAN_PLACEHOLDER campaign (their campaign_id was set NULL)\n";
+    }
+    if ($skippedOfferCount > 0) {
+        echo "Note: {$skippedOfferCount} clicks had an orphaned offer_id and were DROPPED entirely "
+            . "(sample old click ids: " . implode(',', $sampleSkippedOffer) . ")\n";
+    }
+}
+
+// ---------------------------------------------------------------------
+// STEP 9: clicks_redirections (CHUNKED)
+// ---------------------------------------------------------------------
+function migrateClickRedirections(PDO $old, PDO $new, int $chunkSize, array &$checkpoint, string $checkpointPath): void
+{
+    $map = ['INIT' => 'pending', 'BUFFER' => 'buffered', 'FINALIZED' => 'completed'];
+    $lastClickId = $checkpoint['redirections_last_click_id'] ?? '';
+    $total = 0;
+
+    while (true) {
+        $stmt = $old->prepare("SELECT click_id, state FROM click_redirections
+                                WHERE click_id > ? ORDER BY click_id ASC LIMIT ?");
+        $stmt->bindValue(1, $lastClickId);
+        $stmt->bindValue(2, $chunkSize, PDO::PARAM_INT);
+        $stmt->execute();
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if (!$rows) break;
+
+        $placeholders = [];
+        $values = [];
+        foreach ($rows as $r) {
+            $placeholders[] = '(?, ?)';
+            $values[] = $r['click_id'];
+            $values[] = $map[$r['state']] ?? 'pending';
+            $lastClickId = $r['click_id'];
+        }
+        $sql = "INSERT INTO clicks_redirections (click_id, status) VALUES " . implode(',', $placeholders);
+        $new->prepare($sql)->execute($values);
+
+        $total += count($rows);
+        $checkpoint['redirections_last_click_id'] = $lastClickId;
+        saveCheckpoint($checkpointPath, $checkpoint);
+        echo "Redirections migrated: {$total}\n";
+
+        $stmt->closeCursor();
+        unset($rows, $placeholders, $values, $stmt);
+        gc_collect_cycles();
+    }
+    echo "Done. Migrated {$total} click redirections total.\n";
+}
+
+// ---------------------------------------------------------------------
+// STEP 10: conversions + conversions_events (CHUNKED)
+// !!! REVIEW: status is migrated as a raw label - confirm meaning of the
+// old tinyint (1/0) and re-map before relying on it.
+// Old schema never enforced a FK on conversions.click_id, so orphaned rows
+// (click_id pointing at a click that doesn't exist) are skipped + logged.
+// ---------------------------------------------------------------------
+function migrateConversions(PDO $old, PDO $new, int $chunkSize, array &$checkpoint, string $checkpointPath): void
+{
+    // Small lookup tables only - safe to hold in memory. We deliberately do
+    // NOT build a click_id -> offer_id map here (that would mean loading
+    // millions of click rows). Instead we JOIN against clicks directly in
+    // the paginated query below, which also detects orphans for free.
+    $offerToAffAccount = [];
+    foreach ($old->query("SELECT id, affiliate_program_id FROM offers") as $r) {
+        $offerToAffAccount[$r['id']] = $r['affiliate_program_id'];
+    }
+    $affAccountToCatalog = [];
+    foreach ($new->query("SELECT id, affiliate_catalog_id FROM affiliate_accounts") as $r) {
+        $affAccountToCatalog[$r['id']] = $r['affiliate_catalog_id'];
+    }
+
+    // conversions_events has a UNIQUE KEY on
+    // (affiliate_catalog_id, click_id, commission_id, status, commission) -
+    // the old data can contain the exact same event logged more than once
+    // (duplicate postbacks are a common affiliate-network quirk). The
+    // ON DUPLICATE KEY UPDATE ... = LAST_INSERT_ID(id) idiom lets us insert
+    // OR fetch-the-existing-id in one round trip, reliably, per row.
+    $insertEvent = $new->prepare("INSERT INTO conversions_events
+    (click_id, affiliate_catalog_id, commission_id, commission, status,
+     event_id, event_type, advertiser_id, sale_date, modified_date,
+     advertiser_sale_amount, advertiser_name, commission_type, payout_id,
+     country_code, site_id, currency, created_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,NULL,NULL,NULL,NULL,NULL,NULL,?)
+    ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)");
+
+    // conversions.transaction_id is UNIQUE, but the same commission_id can
+    // legitimately appear across several conversions_events rows (status
+    // changed over time: open -> confirmed -> paid). conversions represents
+    // ONE row per real transaction, so re-processing the same commission_id
+    // updates it to point at whichever event we're currently processing
+    // (rows are walked in old-id order, which tracks chronological order).
+
+$upsertConv = $new->prepare("
+    INSERT INTO conversions
+        (
+            conversion_event_id,
+            transaction_id,
+            commission_id,
+            commission,
+            status,
+            accumulated_commission,
+            loss,
+            events_count,
+            currency,
+            created_at,
+            updated_at
+        )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE
+        conversion_event_id = VALUES(conversion_event_id),
+        commission_id = VALUES(commission_id),
+        commission = VALUES(commission),
+        status = VALUES(status),
+        accumulated_commission = VALUES(accumulated_commission),
+        loss = VALUES(loss),
+        events_count = VALUES(events_count),
+        currency = VALUES(currency),
+        updated_at = VALUES(updated_at)
+");
+
+    $lastId = $checkpoint['conversions_last_id'] ?? 0;
+    $oldConvIdToEventId = $checkpoint['oldConvIdToEventId'] ?? [];
+    $totalMigrated = $checkpoint['conversions_total_migrated'] ?? 0;
+    $totalSkipped = $checkpoint['conversions_total_skipped'] ?? 0;
+    $totalDeduped = $checkpoint['conversions_total_deduped'] ?? 0;
+    $sampleSkipped = $checkpoint['conversions_skipped_sample'] ?? [];
+
+    while (true) {
+        // Fetch the raw chunk first (click_offer_id/click_exists here refer
+        // to the OLD clicks table, used only to look up affiliate_catalog -
+        // NOT as proof the click made it into the NEW clicks table).
+        $stmt = $old->prepare("
+            SELECT co.*, cl.offer_id AS click_offer_id, cl.id AS click_exists
+            FROM conversions co
+            LEFT JOIN clicks cl ON cl.id = co.click_id
+            WHERE co.id > ? ORDER BY co.id ASC LIMIT ?");
+        $stmt->bindValue(1, $lastId, PDO::PARAM_INT);
+        $stmt->bindValue(2, $chunkSize, PDO::PARAM_INT);
+        $stmt->execute();
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if (!$rows) break;
+
+        // The real check: does this click_id actually exist in the NEW
+        // clicks table? A click can exist in the OLD table but have been
+        // dropped during the clicks step (e.g. orphaned offer_id), so
+        // checking against the old table alone is not enough.
+        $candidateClickIds = array_unique(array_column($rows, 'click_id'));
+        $existsInNewClicks = [];
+        if ($candidateClickIds) {
+            $inPlaceholders = implode(',', array_fill(0, count($candidateClickIds), '?'));
+            $checkStmt = $new->prepare("SELECT id FROM clicks WHERE id IN ({$inPlaceholders})");
+            $checkStmt->execute(array_values($candidateClickIds));
+            foreach ($checkStmt->fetchAll(PDO::FETCH_COLUMN) as $id) {
+                $existsInNewClicks[$id] = true;
+            }
+        }
+
+        $new->beginTransaction();
+        foreach ($rows as $c) {
+            $lastId = (int)$c['id'];
+            $existedInOld = $c['click_exists'] !== null;
+            $existsInNew = isset($existsInNewClicks[$c['click_id']]);
+            if (!$existedInOld || !$existsInNew) {
+                $totalSkipped++;
+                if (count($sampleSkipped) < 20) $sampleSkipped[] = $c['id'];
+                continue;
+            }
+            $offerId = $c['click_offer_id'];
+            $affAccountId = $offerToAffAccount[$offerId] ?? null;
+            $catalogId = $affAccountId !== null ? ($affAccountToCatalog[$affAccountId] ?? null) : null;
+
+$status = match ((int) $c['status']) {
+    1 => 'open',
+    2 => 'confirmed',
+    3 => 'rejected',
+    4 => 'paid',
+    default => 'open',
+};
+
+$commission = (float) ($c['revenue'] ?? 0);
+
+// Old conversions table has no created_at / updated_at.
+// Use modified_date when available, otherwise current time.
+$conversionDate = !empty($c['modified_date'])
+    ? $c['modified_date']
+    : now();
+
+$createdAt = $conversionDate;
+$updatedAt = $conversionDate;
+
+// -------------------------------------------------------------
+// 1. Create/find the conversions_events row FIRST.
+// -------------------------------------------------------------
+$insertEvent->execute([
+    $c['click_id'],                  // click_id
+    $catalogId,                      // affiliate_catalog_id
+    $c['commission_id'],              // commission_id
+    $commission,                      // commission
+    $status,                          // status
+    $c['event_id'],                  // OLD affiliate/network event ID
+    $c['event_type'],                // NEW / UPDATE
+    $c['advertiser_id'] ?? null,
+    $c['sale_date'] ?? null,
+    $c['modified_date'] ?? null,
+    $c['sales_amount'] ?? null,
+    $createdAt,                       // created_at
+]);
+
+// This is the NEW conversions_events.id.
+$eventId = (int) $new->lastInsertId();
+
+// If the event already existed, LAST_INSERT_ID(id)
+// returns its existing ID because of:
+// ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)
+if ($insertEvent->rowCount() === 0) {
+    $totalDeduped++;
+}
+
+// Keep the relationship between old conversion ID
+// and the NEW conversions_events ID for notifications.
+$oldConvIdToEventId[$c['id']] = $eventId;
+
+// -------------------------------------------------------------
+// 2. Create/update the conversion using the NEW event ID.
+// -------------------------------------------------------------
+$transactionId = $catalogId . '_' . $c['commission_id'];
+
+$upsertConv->execute([
+    $eventId,                         // NEW conversions_events.id
+    $transactionId,                   // unique transaction ID
+    $c['commission_id'],
+    $commission,
+    $status,
+    $commission,
+    0,                                // loss
+    1,                                // events_count
+    null,                             // currency
+    $createdAt,
+    $updatedAt,
+]);
+
+$totalMigrated++;
+        }
+        $new->commit();
+
+        $checkpoint['conversions_last_id'] = $lastId;
+        $checkpoint['oldConvIdToEventId'] = $oldConvIdToEventId;
+        $checkpoint['conversions_total_migrated'] = $totalMigrated;
+        $checkpoint['conversions_total_skipped'] = $totalSkipped;
+        $checkpoint['conversions_total_deduped'] = $totalDeduped;
+        $checkpoint['conversions_skipped_sample'] = $sampleSkipped;
+        saveCheckpoint($checkpointPath, $checkpoint);
+        echo "Conversions migrated: {$totalMigrated} (skipped so far: {$totalSkipped}, "
+            . "deduped so far: {$totalDeduped})\n";
+
+        $stmt->closeCursor();
+        $checkStmt->closeCursor();
+        unset($rows, $candidateClickIds, $existsInNewClicks, $stmt, $checkStmt);
+        gc_collect_cycles();
+    }
+
+    echo "Done. Migrated {$totalMigrated} conversions total"
+        . ($totalDeduped > 0 ? " ({$totalDeduped} were exact duplicates already present, pointed at the existing event)" : "")
+        . ".\n";
+    if ($totalSkipped > 0) {
+        echo "Skipped {$totalSkipped} conversions with orphaned click_id "
+            . "(sample old conversion ids: " . implode(',', $sampleSkipped) . ")\n";
+    }
+}
+
+// ---------------------------------------------------------------------
+// STEP 11: notifications (CHUNKED)
+// Best-effort link: match old notifications to old conversions by
+// (click_id, event_id, event_type), then to the new conversions_events id
+// built during the conversions step. !!! REVIEW a sample after running.
+// ---------------------------------------------------------------------
+function migrateNotifications(PDO $old, PDO $new, array $oldConvIdToEventId, int $chunkSize, array &$checkpoint, string $checkpointPath): void
+{
+    // Build a lookup of old conversions by click_id+event_id+event_type.
+    // This table is expected to be much smaller than clicks, so holding it
+    // in memory is fine; if yours is huge, this is the one place to revisit.
+    $convLookup = [];
+    foreach ($old->query("SELECT id, click_id, event_id, event_type FROM conversions") as $c) {
+        $key = $c['click_id'] . '|' . $c['event_id'] . '|' . $c['event_type'];
+        $convLookup[$key] = $c['id'];
+    }
+
+    $lastId = $checkpoint['notifications_last_id'] ?? 0;
+    $matched = $checkpoint['notifications_matched'] ?? 0;
+    $total = $checkpoint['notifications_total'] ?? 0;
+
+    while (true) {
+        $stmt = $old->prepare("SELECT * FROM notifications WHERE id > ? ORDER BY id ASC LIMIT ?");
+        $stmt->bindValue(1, $lastId, PDO::PARAM_INT);
+        $stmt->bindValue(2, $chunkSize, PDO::PARAM_INT);
+        $stmt->execute();
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if (!$rows) break;
+
+        $placeholders = [];
+        $values = [];
+        foreach ($rows as $n) {
+            $lastId = (int)$n['id'];
+            $total++;
+            $key = $n['click_id'] . '|' . $n['event_id'] . '|' . $n['event_type'];
+            $oldConvId = $convLookup[$key] ?? null;
+            $eventId = $oldConvId !== null ? ($oldConvIdToEventId[$oldConvId] ?? null) : null;
+            if ($eventId === null) continue; // unmatched or its conversion was skipped as orphaned
+
+            $matched++;
+            $placeholders[] = '(?,?,?,?,?)';
+            array_push($values, $eventId, $n['is_read'], $n['read_at'], now(), now());
+        }
+
+        if ($placeholders) {
+            $sql = "INSERT INTO notifications
+                (conversion_event_id, is_read, read_at, created_at, updated_at)
+                VALUES " . implode(',', $placeholders);
+            $new->prepare($sql)->execute($values);
+        }
+
+        $checkpoint['notifications_last_id'] = $lastId;
+        $checkpoint['notifications_matched'] = $matched;
+        $checkpoint['notifications_total'] = $total;
+        saveCheckpoint($checkpointPath, $checkpoint);
+        echo "Notifications processed: {$total} (matched: {$matched})\n";
+
+        $stmt->closeCursor();
+        unset($rows, $placeholders, $values, $stmt);
+        gc_collect_cycles();
+    }
+    echo "Done. Migrated {$matched} / {$total} notifications (the rest had no matching conversion - review)\n";
+}
+
+// ---------------------------------------------------------------------
+// STEP 12: INSERT REQUIRED LARAVEL MIGRATIONS
+// ---------------------------------------------------------------------
+
+function verifyLaravelMigrations(PDO $new): void
+{
+    $requiredMigrations = [
+        '0001_01_01_000000_create_users_table',
+        '0001_01_01_000001_create_cache_table',
+        '0001_01_01_000002_create_jobs_table',
+        '2026_07_29_161734_companies_table',
+        '2026_07_29_163516_blogs_tables',
+        '2026_07_29_164021_affiliates_tables',
+        '2026_07_29_182923_traffics_table',
+        '2026_07_29_183236_offers_table',
+        '2026_07_29_183604_campaigns_table',
+        '2026_07_29_184549_clicks_table',
+        '2026_07_29_185831_conversions_table',
+        '2026_07_31_145937_notifications_table',
+    ];
+
+    $stmt = $new->query("SHOW TABLES LIKE 'migrations'");
+
+    if (!$stmt->fetchColumn()) {
+        echo "WARNING: migrations table does not exist.\n";
+        return;
+    }
+
+    // Get the highest existing batch number.
+    $stmt = $new->query("SELECT COALESCE(MAX(batch), 0) FROM migrations");
+    $batch = (int) $stmt->fetchColumn();
+
+    // Insert missing migrations.
+    $check = $new->prepare(
+        "SELECT COUNT(*) FROM migrations WHERE migration = ?"
+    );
+
+    $insert = $new->prepare(
+        "INSERT INTO migrations (migration, batch) VALUES (?, ?)"
+    );
+
+    $inserted = [];
+
+    foreach ($requiredMigrations as $migration) {
+        $check->execute([$migration]);
+
+        if ((int) $check->fetchColumn() === 0) {
+            $insert->execute([$migration, $batch]);
+            $inserted[] = $migration;
+        }
+    }
+
+    if ($inserted) {
+        echo "\nInserted the following Laravel migrations:\n";
+
+        foreach ($inserted as $migration) {
+            echo "  + {$migration}\n";
+        }
+
+        echo "\n";
+    } else {
+        echo "\nAll required Laravel migrations are already recorded.\n";
+    }
+}
+
+// ---------------------------------------------------------------------
+// RUN
+// ---------------------------------------------------------------------
+$STEPS = [
+    'company'    => fn() => migrateCompany($new, $COMPANY_NAME),
+    'affiliates' => function () use ($old, $new) {
+        $catalogMap = migrateAffiliateCatalog($old, $new);
+        migrateAffiliateAccounts($old, $new, $catalogMap);
+    },
+    'traffic' => fn() => migrateTraffic($old, $new),
+    'blogs'   => function () use ($old, $new, &$checkpoint, $CHECKPOINT) {
+        $checkpoint['validBlogIds'] = migrateBlogs($old, $new);
+        saveCheckpoint($CHECKPOINT, $checkpoint);
+    },
+    'offers' => function () use ($old, $new, &$checkpoint, $CHECKPOINT) {
+        $validBlogIds = $checkpoint['validBlogIds'] ?? null;
+        if ($validBlogIds === null) {
+            echo "Run the 'blogs' step first (missing data in checkpoint).\n";
+            exit(1);
+        }
+        $checkpoint['validOfferIds'] = migrateOffers($old, $new, $validBlogIds);
+        saveCheckpoint($CHECKPOINT, $checkpoint);
+    },
+    'campaigns'  => function () use ($old, $new, &$checkpoint, $CHECKPOINT) {
+        $result = migrateCampaigns($old, $new);
+        $checkpoint['campaignToTrafficIdRow'] = $result['campaignToTrafficIdRow'];
+        $checkpoint['orphanTrafficId'] = $result['orphanTrafficId'];
+        saveCheckpoint($CHECKPOINT, $checkpoint);
+    },
+    'clicks' => function () use ($old, $new, &$checkpoint, $CHECKPOINT, $CHUNK_SIZE) {
+        $map = $checkpoint['campaignToTrafficIdRow'] ?? null;
+        $orphanTrafficId = $checkpoint['orphanTrafficId'] ?? null;
+        $validOfferIds = $checkpoint['validOfferIds'] ?? null;
+        if ($map === null || $orphanTrafficId === null || $validOfferIds === null) {
+            echo "Run the 'campaigns' and 'offers' steps first (missing data in checkpoint).\n";
+            exit(1);
+        }
+        migrateClicks($old, $new, $map, $orphanTrafficId, $validOfferIds, $CHUNK_SIZE, $checkpoint, $CHECKPOINT);
+    },
+    'redirections' => function () use ($old, $new, &$checkpoint, $CHECKPOINT, $CHUNK_SIZE) {
+        migrateClickRedirections($old, $new, $CHUNK_SIZE, $checkpoint, $CHECKPOINT);
+    },
+    'conversions' => function () use ($old, $new, &$checkpoint, $CHECKPOINT, $CHUNK_SIZE) {
+        migrateConversions($old, $new, $CHUNK_SIZE, $checkpoint, $CHECKPOINT);
+    },
+    'notifications' => function () use ($old, $new, &$checkpoint, $CHECKPOINT, $CHUNK_SIZE) {
+        $map = $checkpoint['oldConvIdToEventId'] ?? [];
+        migrateNotifications($old, $new, $map, $CHUNK_SIZE, $checkpoint, $CHECKPOINT);
+    },
+
+        // FINAL STEP
+    'verify_migrations' => fn() => verifyLaravelMigrations($new),
+];
+
+$requested = $argv[1] ?? null;
+if ($requested) {
+    if (!isset($STEPS[$requested])) {
+        echo "Unknown step '{$requested}'. Valid: " . implode(', ', array_keys($STEPS)) . "\n";
+        exit(1);
+    }
+    echo "=== Running step: {$requested} ===\n";
+    $STEPS[$requested]();
+} else {
+    foreach ($STEPS as $name => $fn) {
+        echo "=== Running step: {$name} ===\n";
+        $fn();
+    }
+    echo "Done.\n";
+}

@@ -10,9 +10,11 @@ Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
-Route::patch('clicks/{click_id}/status', [ClickRedirectionController::class, 'updateStatus']);
+Route::patch('clicks/{click_id}/status', [ClickRedirectionController::class, 'updateStatus'])
+    ->middleware(['auth', 'verified']);
 
-Route::get('/api/m/{module}/table', [ModuleController::class, 'table']);
+Route::get('/api/m/{module}/table', [ModuleController::class, 'table'])
+    ->middleware(['auth', 'verified']);
 
 Route::get('/api/countries/search', function (Request $request, CountryRepository $countries) {
     return response()->json(

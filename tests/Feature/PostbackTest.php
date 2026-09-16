@@ -34,7 +34,7 @@ it('persists a unique postback and acknowledges a duplicate', function (): void 
     $catalog = AffiliateCatalog::factory()->create([
         'name' => 'YieldKit',
         'slug' => 'yieldkit',
-        'commission_mode' => 'absolute',
+        'commission_mode' => 'delta',
     ]);
     $account = AffiliateAccount::factory()->create([
         'company_id' => $company->id,
@@ -93,15 +93,22 @@ it('persists a unique postback and acknowledges a duplicate', function (): void 
 
     $first = $this->postJson('http://localhost/postback/yieldkit', $payload);
     $second = $this->postJson('http://localhost/postback/yieldkit', $payload);
+    $rejected = $this->postJson('http://localhost/postback/yieldkit', [
+        ...$payload,
+        'EVENT_ID' => 'yield-event-2',
+        'COMMISSION' => '0',
+        'STATE' => 'REJECTED',
+    ]);
 
     $first->assertOk()->assertJson(['duplicate' => false]);
     $second->assertOk()->assertJson(['duplicate' => true]);
-    $this->assertDatabaseCount('conversions_events', 1);
+    $rejected->assertOk()->assertJson(['duplicate' => false]);
+    $this->assertDatabaseCount('conversions_events', 2);
     $this->assertDatabaseCount('conversions', 1);
-    $this->assertDatabaseCount('notifications', 1);
+    $this->assertDatabaseCount('notifications', 2);
     $this->assertDatabaseHas('conversions', [
         'commission_id' => 'yield-commission-1',
         'commission' => '4.25000',
-        'status' => 'OPEN',
+        'status' => 'REJECTED',
     ]);
 });

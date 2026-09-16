@@ -2,6 +2,7 @@
 
 namespace App\Services\Reporting;
 
+use App\Services\Commissions\CommissionSnapshotRefresher;
 use DateTimeImmutable;
 use DateTimeZone;
 use InvalidArgumentException;
@@ -23,9 +24,6 @@ final class ReportingService
 
     /**
      * Which conversion statuses count toward "revenue" / "profit" / "avg payout".
-     * 'delayed' is tracked as its own column but excluded from revenue by
-     * default since its outcome isn't final yet — add it here if you'd
-     * rather treat delayed commissions as earned.
      *
      * @var list<string>
      */
@@ -38,11 +36,13 @@ final class ReportingService
         'confirmed_conversions', 'confirmed_conversions_sum',
         'rejected_conversions', 'rejected_conversions_sum',
         'paid_conversions', 'paid_conversions_sum',
-        'delayed_conversions', 'delayed_conversions_sum',
-        'revenue', 'spent', 'profit', 'cr', 'roi', 'avg_payout',
+        'loss', 'revenue', 'spent', 'profit', 'cr', 'roi', 'avg_payout',
     ];
 
-    public function __construct(private readonly ReportingRepository $repository) {}
+    public function __construct(
+        private readonly ReportingRepository $repository,
+        private readonly ?CommissionSnapshotRefresher $snapshotRefresher = null,
+    ) {}
 
     /**
      * @param  array<string, mixed>  $payload
@@ -51,6 +51,9 @@ final class ReportingService
     public function buildReport(array $payload): array
     {
         [$dateFrom, $dateTo, $datePreset] = $this->resolveDateRange($payload);
+
+        $this->snapshotRefresher?->refresh();
+
         $groupBy = $this->normalizeGroupBy($payload['group_by'] ?? null);
         $level = $this->normalizeLevel($payload['level'] ?? 0, count($groupBy));
         $parentFilters = $this->normalizeParentFilters($payload['parent_filters'] ?? [], $groupBy, $level);
@@ -285,6 +288,7 @@ final class ReportingService
                 $entry[$status.'_conversions'] = (int) ($row[$status.'_conversions'] ?? 0);
                 $entry[$status.'_conversions_sum'] = (float) ($row[$status.'_conversions_sum'] ?? 0);
             }
+            $entry['loss'] = (float) ($row['loss'] ?? 0);
             $conversionByKey[$key] = $entry;
         }
 
@@ -293,6 +297,7 @@ final class ReportingService
             $emptyConv[$status.'_conversions'] = 0;
             $emptyConv[$status.'_conversions_sum'] = 0.0;
         }
+        $emptyConv['loss'] = 0.0;
 
         $groupField = $this->filterKeyForGroup($group);
         $out = [];
@@ -327,6 +332,7 @@ final class ReportingService
                 'can_expand' => $canExpand,
                 'clicks' => $clicks,
                 'total_conversions' => $conv['total_conversions'],
+                'loss' => $conv['loss'],
             ], $this->statusColumns($conv, $statuses), [
                 'revenue' => $revenue,
                 'spent' => $spent,
@@ -396,6 +402,7 @@ final class ReportingService
                 $qualifiedConversions += $count;
             }
         }
+        $loss = (float) ($totalConversions['loss'] ?? 0);
 
         $profit = $revenue - $spent;
         $derivedCr = $clicks > 0 ? (($totalConversionsCount / $clicks) * 100.0) : 0.0;
@@ -405,6 +412,7 @@ final class ReportingService
         return array_merge([
             'clicks' => $clicks,
             'total_conversions' => $totalConversionsCount,
+            'loss' => $loss,
         ], $statusColumns, [
             'revenue' => $revenue,
             'spent' => $spent,

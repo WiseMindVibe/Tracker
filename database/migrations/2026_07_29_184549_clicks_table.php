@@ -18,10 +18,9 @@ return new class extends Migration
             $table->uuid('click_id')->unique();
 
             $table->foreignId('offer_id')->constrained()->restrictOnDelete();
-            $table->foreignId('campaign_id')->nullable()->constrained()->nullOnDelete();
-            $table->foreignId('traffic_campaign_id')->constrained('campaigns_traffic_ids')->restrictOnDelete();
-            $table->string('status')->default('pending
-            ');
+            $table->foreignId('campaign_id')->nullable()->constrained()->restrictOnDelete();
+            $table->foreignId('traffic_campaign_id')->constrained('campaigns_traffic_ids')->noActionOnDelete();
+            $table->string('status')->default('pending');
 
             $table->string('country', 2)->nullable();
             $table->string('region', 40)->nullable();
@@ -42,7 +41,14 @@ return new class extends Migration
             $table->decimal('cost', 10, 5)->default(0);
             $table->timestamps();
 
-            $table->index(['campaign_id', 'created_at']);
+            // clicks table
+            $table->index(['offer_id', 'created_at']);
+            $table->index(['campaign_id', 'created_at']); // already exists
+            $table->index(['created_at']);  // useful for top-level reports
+            $table->index(['created_at', 'offer_id'], 'clicks_reporting_created_offer_index');
+            $table->index(['offer_id', 'created_at', 'campaign_id'], 'clicks_reporting_offer_date_campaign_index');
+            $table->index(['offer_id', 'campaign_id', 'created_at', 'os'], 'clicks_reporting_offer_campaign_date_os_index');
+            $table->index(['offer_id', 'campaign_id', 'os', 'created_at', 'browser'], 'clicks_reporting_offer_campaign_os_date_browser_index');
         });
 
         Schema::create('clicks_redirections', function (Blueprint $table) {

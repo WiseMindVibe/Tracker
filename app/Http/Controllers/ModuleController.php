@@ -10,6 +10,7 @@ use App\Modules\ModuleManager;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -44,6 +45,15 @@ class ModuleController extends Controller
             $activeColumn->applySort($query, $sortDirection);
         }
 
+        // /SEARCH
+        $search = $request->input('search');
+        $searchField = $table->searchField ?? 'name';
+
+        if ($search !== null && $search !== '' && $this->modelHasColumn($config->model(), $searchField)) {
+            $query->where($searchField, 'like', '%'.$search.'%');
+        }
+        // /SEARCH
+
         $rows = $query->paginate(25)->withQueryString();
 
         return Inertia::render('Modules/Index', [
@@ -53,6 +63,8 @@ class ModuleController extends Controller
             'actions' => $table->actions,
             'rows' => $rows,
             'sort' => $sortColumn ? ['column' => $sortColumn, 'direction' => $sortDirection] : null,
+            'search' => $search,
+
         ]);
     }
 
@@ -399,5 +411,10 @@ class ModuleController extends Controller
         }
 
         return "Cannot delete this {$recordLabel} because other records still depend on it.";
+    }
+
+    private function modelHasColumn(string $modelClass, string $column): bool
+    {
+        return Schema::hasColumn((new $modelClass)->getTable(), $column);
     }
 }

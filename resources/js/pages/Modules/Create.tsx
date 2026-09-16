@@ -43,7 +43,7 @@ interface Field {
     label: string;
     type: "text" | "url" | "select" | "country" | "tracking_link";
     placeholder?: string;
-    options?: Record<string, string>;
+    options?: Record<string, string> | CountryOption[];
     default?: string;
     required?: boolean;
     disabled?: boolean;
@@ -52,7 +52,13 @@ interface Field {
 interface Repeater {
     relation: string;
     label: string;
-    fields: { field: string; label: string; type: string; placeholder?: string }[];
+    fields: {
+        field: string;
+        label: string;
+        type: string;
+        placeholder?: string;
+        options?: Record<string, string>;
+    }[];
     min: number;
 }
 
@@ -91,7 +97,7 @@ export default function Create({
             ),
         };
 
-    const { data, setData, post, processing, errors } = useForm(initialData);
+    const { data, setData, post, processing, errors } = useForm<Record<string, any>>(initialData);
     
     function optionsFor(field: Field): Record<string, string> {
         const all = (field.options as Record<string, string>) ?? {};
@@ -166,7 +172,7 @@ export default function Create({
                                 />
                             ) :field.type === "country" ? (
                                     <CountrySelect
-                                        id={field.field}
+                                        field={field.field}
                                         options={(field.options as CountryOption[]) ?? []}
                                         value={data[field.field]}
                                         onChange={(value) => setData(field.field, value)}
@@ -176,7 +182,7 @@ export default function Create({
                                     field={field.field}
                                     options={optionsFor(field)}
                                     value={data[field.field]}
-                                    placeholder={field.placeholder}
+                                    placeholder={field.placeholder ?? "Choose an option"}
                                     onChange={(value) => setData(field.field, value)}
                                 />
                                 ) : (

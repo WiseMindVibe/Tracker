@@ -2,7 +2,14 @@ import ChipListCell from '@/components/ChipListCell';
 import ProgressCell from '@/components/progress-cell';
 import { Link, Head, router } from '@inertiajs/react';
 import { ArrowUp, ArrowDown, ArrowUpDown, Copy } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
+
+interface PaginationLink {
+    url: string | null;
+    label: string;
+    active: boolean;
+}
 
 interface Props {
     module: string;
@@ -10,12 +17,20 @@ interface Props {
     columns: Column[];
     actions?: Actions[];
     rows: {
-        data: any,
+        data: any[];
+        links: PaginationLink[];
+        current_page: number;
+        last_page: number;
+        total: number;
+        from: number | null;
+        to: number | null;
     };
     sort?: {
         column: string;
         direction: "asc" | "desc";
     };
+    search?: string | null;
+
 }
 
 interface Titles {
@@ -50,7 +65,8 @@ export default function Index({
     columns,
     actions,
     rows,
-    sort
+    sort,
+    search
 }: Props){
 
     const hasCreate = actions?.find((a) => a.type === 'create');
@@ -82,6 +98,26 @@ export default function Index({
         navigator.clipboard.writeText(value);
     }
 
+        const [searchTerm, setSearchTerm] = useState(search ?? '');
+
+    useEffect(() => {
+        const handle = setTimeout(() => {
+            if (searchTerm === (search ?? '')) return;
+
+            router.get(
+                window.location.pathname,
+                {
+                    ...(sort ? { sort: sort.column, direction: sort.direction } : {}),
+                    search: searchTerm || undefined,
+                },
+                { preserveState: true, preserveScroll: true, replace: true }
+            );
+        }, 350);
+
+        return () => clearTimeout(handle);
+    }, [searchTerm]);
+
+
     return ( 
     <div className="ml-5 mt-5">
 
@@ -102,8 +138,17 @@ export default function Index({
                 </Link>
             )}
         </div>
-
-        <table className="mt-3 w-full text-sm">
+        <div className="mt-3">
+    <input
+        type="text"
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        placeholder={`Search by name...`}
+        className="w-full max-w-xs rounded-md border border-border bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/50"
+    />
+</div>
+        <div className="mt-3 overflow-x-auto rounded-lg border border-border">
+        <table className="w-max min-w-full table-auto text-sm">
             <thead>
                 <tr className="border-b border-border bg-muted/50">    
                     {columns.map((column, index) => {
@@ -111,7 +156,7 @@ export default function Index({
                         return (
                             <th key={`${column.field}-${index}`}
                             onClick={() => handleSort(column)}
-                            className={`px-2 py-1.5 text-left font-medium text-muted-foreground
+                            className={`px-2 py-1.5 text-left font-medium text-muted-foreground whitespace-nowrap
                             ${column.sortable ? "cursor-pointer select-none hover:text-foreground" :
                                 ""
                             }`}>
@@ -160,7 +205,9 @@ export default function Index({
                                     <ChipListCell row={row} column={column} />
                                 ) : 
                                 (
-                                    row[column.field]
+                                    <div className="max-w-[220px] truncate">
+    {row[column.field]}
+</div>
                                 )}
                             </td>
                         ))}
@@ -186,7 +233,38 @@ export default function Index({
                 ))}
             </tbody>
         </table>
+        </div>
+        <div className="mt-3 flex items-center justify-between">
+    <p className="text-sm text-muted-foreground">
+        {rows.total > 0
+            ? `Showing ${rows.from}–${rows.to} of ${rows.total}`
+            : 'No results'}
+    </p>
 
+    <div className="flex items-center gap-1">
+        {rows.links.map((link, index) => (
+            link.url ? (
+                <Link
+                    key={index}
+                    href={link.url}
+                    preserveState
+                    preserveScroll
+                    className={`rounded-md px-3 py-1.5 text-sm font-medium
+                        ${link.active
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-secondary text-secondary-foreground hover:bg-secondary/90'}`}
+                    dangerouslySetInnerHTML={{ __html: link.label }}
+                />
+            ) : (
+                <span
+                    key={index}
+                    className="rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50"
+                    dangerouslySetInnerHTML={{ __html: link.label }}
+                />
+            )
+        ))}
+    </div>
+</div>
     </div>
     )
 

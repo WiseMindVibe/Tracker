@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Database\Factories\ConversionEventFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -9,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ConversionEvent extends Model
 {
-    /** @use HasFactory<\Database\Factories\ConversionEventFactory> */
+    /** @use HasFactory<ConversionEventFactory> */
     use HasFactory;
 
     protected $table = 'conversions_events';
@@ -57,5 +58,10 @@ class ConversionEvent extends Model
     public function affiliateCatalog(): BelongsTo
     {
         return $this->belongsTo(AffiliateCatalog::class);
+    }
+
+    public function conversions(): HasMany
+    {
+        return $this->hasMany(Conversion::class, 'conversion_event_id');
     }
 }

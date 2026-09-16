@@ -26,7 +26,7 @@ class Campaign extends Model
             if (empty($campaign->uuid)) {
                 $campaign->uuid = (string) Str::uuid();
             }
-            if (empty($campign->fallback_url)) {
+            if (empty($campaign->fallback_url)) {
                 $campaign->fallback_url = 'https://google.com';
             }
         });

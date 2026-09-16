@@ -1,15 +1,39 @@
 import { useEffect, useState } from 'react';
 import { Head } from '@inertiajs/react';
 
+import PaginationBar from '@/components/pagination-bar';
+import SearchInput from '@/components/search-input';
+
+type PaginationLink = { url: string | null; label: string; active: boolean };
+
+
+
+type CommissionInfo = {
+    commission_id: string;
+    status: string | null;
+    commission: number | null;
+    accumulated: number | null;
+    loss: number | null;
+    events_count: number;
+    commission_mode: string | null;
+};
+
 type ConversionRow = {
     id: number;
     click_id: string | null;
     click_pk: number | null;
-    commission: string | null;
+    offer: string | null;
+
+    // Final commission for the entire click
+    commission: number | null;
+    loss: number | null;
     commission_mode: string | null;
-    status: string | null;
-    transaction_id: string | null;
-    events_count: number | null;
+
+    // Individual commission ID values
+    commissions: CommissionInfo[];
+
+    events_count: number;
+
     created_at: string | null;
     updated_at: string | null;
 };
@@ -34,17 +58,33 @@ type ConversionEvent = {
     created_at: string | null;
 };
 
+type CommissionGroup = {
+    commission_id: string | null;
+    latest_status: string | null;
+    snapshot: {
+        value: number;
+        accumulated: number;
+        loss: number;
+        events_count: number;
+    } | null;
+    events: ConversionEvent[];
+};
+
 type Props = {
     conversions: {
         data: ConversionRow[];
+        links: PaginationLink[];
+        from: number | null;
+        to: number | null;
+        total: number;
     };
+    search?: string | null;
 };
 
 type Theme = 'light' | 'dark';
 
 const HISTORY_COLUMNS: { key: keyof ConversionEvent; label: string }[] = [
     { key: 'id', label: 'ID' },
-    { key: 'commission_id', label: 'Commission ID' },
     { key: 'commission', label: 'Commission' },
     { key: 'currency', label: 'Currency' },
     { key: 'status', label: 'Status' },
@@ -62,15 +102,26 @@ const HISTORY_COLUMNS: { key: keyof ConversionEvent; label: string }[] = [
     { key: 'created_at', label: 'Created at' },
 ];
 
+// SSR-safe: always starts at 'light' on both server and first client render,
+// then resolves the real preference after mount to avoid a hydration mismatch.
 function useTheme(): [Theme, () => void] {
-    const [theme, setTheme] = useState<Theme>(() => {
-        if (typeof window === 'undefined') return 'light';
-        const stored = window.localStorage.getItem('theme');
-        if (stored === 'light' || stored === 'dark') return stored;
-        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    });
+    const [theme, setTheme] = useState<Theme>('light');
+    const [mounted, setMounted] = useState(false);
 
     useEffect(() => {
+        const stored = window.localStorage.getItem('theme');
+        const resolved =
+            stored === 'light' || stored === 'dark'
+                ? stored
+                : window.matchMedia('(prefers-color-scheme: dark)').matches
+                    ? 'dark'
+                    : 'light';
+        setTheme(resolved);
+        setMounted(true);
+    }, []);
+
+    useEffect(() => {
+        if (!mounted) return;
         const root = document.documentElement;
         if (theme === 'dark') {
             root.classList.add('dark');
@@ -78,7 +129,7 @@ function useTheme(): [Theme, () => void] {
             root.classList.remove('dark');
         }
         window.localStorage.setItem('theme', theme);
-    }, [theme]);
+    }, [theme, mounted]);
 
     const toggle = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'));
 
@@ -128,16 +179,16 @@ function ThemeToggle({ theme, onToggle }: { theme: Theme; onToggle: () => void }
     );
 }
 
-export default function Index({ conversions }: Props) {
+export default function Index({ conversions, search }: Props) {
     const [theme, toggleTheme] = useTheme();
     const [activeClick, setActiveClick] = useState<{ pk: number; label: string | null } | null>(null);
-    const [events, setEvents] = useState<ConversionEvent[]>([]);
+    const [groups, setGroups] = useState<CommissionGroup[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const openHistory = async (pk: number, label: string | null) => {
         setActiveClick({ pk, label });
-        setEvents([]);
+        setGroups([]);
         setError(null);
         setLoading(true);
         try {
@@ -152,8 +203,8 @@ export default function Index({ conversions }: Props) {
                 throw new Error(`History request failed with status ${response.status}`);
             }
 
-            const data: { data: ConversionEvent[] } = await response.json();
-            setEvents(data.data);
+            const data: { data: CommissionGroup[] } = await response.json();
+            setGroups(data.data ?? []);
         } catch (e) {
             setError(e instanceof Error ? e.message : 'Something went wrong loading history.');
         } finally {
@@ -163,7 +214,7 @@ export default function Index({ conversions }: Props) {
 
     const closeHistory = () => {
         setActiveClick(null);
-        setEvents([]);
+        setGroups([]);
         setError(null);
     };
 
@@ -181,7 +232,7 @@ export default function Index({ conversions }: Props) {
             <Head title="Conversions" />
 
             <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-                <div className="mx-auto max-w-[1400px] px-6 py-10">
+                <div className="mx-auto max-w-[1800px] px-6 py-10">
                     <div className="mb-6 flex items-center justify-between">
                         <div>
                             <h1 className="text-lg font-semibold tracking-tight">Conversions</h1>
@@ -192,14 +243,18 @@ export default function Index({ conversions }: Props) {
                         <ThemeToggle theme={theme} onToggle={toggleTheme} />
                     </div>
 
-                    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                        <table className="w-full border-collapse text-sm">
+                    <div className="mb-4">
+                        <SearchInput initialValue={search ?? ''} placeholder="Search by click ID, commission ID, or offer name..." />
+                    </div>
+
+                    <div className="mt-3 overflow-hidden overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                        <table className="w-max min-w-full table-auto text-sm">
                             <thead>
                                 <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium text-slate-500 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400">
                                     <th className="px-4 py-3">Click ID</th>
+                                    <th className="px-4 py-3">Offer</th>
                                     <th className="px-4 py-3">Commission</th>
-                                    <th className="px-4 py-3">Status</th>
-                                    <th className="px-4 py-3">Transaction ID</th>
+                                    <th className="px-4 py-3">Commissions</th>
                                     <th className="px-4 py-3 text-right">Events</th>
                                     <th className="px-4 py-3">Created</th>
                                     <th className="px-4 py-3">Updated</th>
@@ -209,7 +264,7 @@ export default function Index({ conversions }: Props) {
                             <tbody>
                                 {conversions.data.length === 0 && (
                                     <tr>
-                                        <td colSpan={8} className="px-4 py-10 text-center text-sm text-slate-400 dark:text-slate-600">
+                                        <td colSpan={9} className="px-4 py-10 text-center text-sm text-slate-400 dark:text-slate-600">
                                             No conversions yet.
                                         </td>
                                     </tr>
@@ -220,31 +275,79 @@ export default function Index({ conversions }: Props) {
                                         key={row.id}
                                         className="border-b border-slate-100 last:border-0 hover:bg-slate-50 dark:border-slate-800/60 dark:hover:bg-slate-800/40"
                                     >
-                                        <td className="px-4 py-3 font-mono text-[13px] text-slate-700 dark:text-slate-300">
+                                        <td className="max-w-[220px] truncate px-4 py-3 font-mono text-[13px] text-slate-700 dark:text-slate-300">
                                             {row.click_id ?? '—'}
                                         </td>
-                                        <td className="px-4 py-3 tabular-nums">
-                                            {row.commission_mode === 'absolute' ? (
-                                                row.commission ?? '—'
-                                            ) : (
-                                                <span className="text-slate-400 dark:text-slate-600">—</span>
-                                            )}
+                                        <td className="max-w-[220px] truncate px-4 py-3 text-slate-700 dark:text-slate-300">
+                                            {row.offer ?? '—'}
                                         </td>
-                                        <td className="px-4 py-3">
-                                            <StatusBadge status={row.status} />
-                                        </td>
-                                        <td className="px-4 py-3 font-mono text-[13px] text-slate-700 dark:text-slate-300">
-                                            {row.transaction_id ?? '—'}
-                                        </td>
-                                        <td className="px-4 py-3 text-right tabular-nums">
-                                            <span className="inline-flex min-w-6 items-center justify-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                                                {row.events_count ?? 0}
-                                            </span>
-                                        </td>
-                                        <td className="px-4 py-3 whitespace-nowrap text-xs text-slate-500 dark:text-slate-400">
+<td className="px-4 py-3 whitespace-nowrap">
+    {row.commission !== null
+        ? Number(row.commission).toFixed(2)
+        : '—'}
+</td>
+
+<td className="px-4 py-3">
+    <div className="flex max-w-[750px] flex-wrap gap-1.5">
+        {row.commissions.length > 0 ? (
+            row.commissions.map((commission) => {
+                const status = commission.status?.toLowerCase();
+
+                const statusClasses =
+                    status === 'open'
+                        ? 'bg-yellow-100 text-yellow-800 ring-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-300 dark:ring-yellow-700'
+                        : status === 'confirmed'
+                            ? 'bg-blue-100 text-blue-800 ring-blue-300 dark:bg-blue-900/30 dark:text-blue-300 dark:ring-blue-700'
+                            : status === 'rejected'
+                                ? 'bg-red-100 text-red-800 ring-red-300 dark:bg-red-900/30 dark:text-red-300 dark:ring-red-700'
+                                : status === 'paid'
+                                    ? 'bg-green-100 text-green-800 ring-green-300 dark:bg-green-900/30 dark:text-green-300 dark:ring-green-700'
+                                    : 'bg-slate-100 text-slate-700 ring-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700';
+
+                return (
+                    <span
+                        key={commission.commission_id}
+                        className={`inline-flex items-center gap-2 rounded-md px-2 py-1 font-mono text-[11px] font-medium ring-1 ring-inset ${statusClasses}`}
+                        title={`Commission ID: ${commission.commission_id}`}
+                    >
+                        <span>
+                            {commission.commission_id}
+                        </span>
+
+                        <span className="font-sans font-semibold">
+                            {commission.status ?? '—'}
+                        </span>
+
+                        <span className="font-sans font-bold">
+                            {commission.commission !== null
+                                ? Number(commission.commission).toFixed(2)
+                                : '—'}
+                        </span>
+
+                        <span className="font-sans text-rose-700 dark:text-rose-300">
+                            loss {commission.loss !== null ? Number(commission.loss).toFixed(2) : '0.00'}
+                        </span>
+                    </span>
+                );
+            })
+        ) : (
+            <span className="text-slate-400 dark:text-slate-600">
+                —
+            </span>
+        )}
+    </div>
+</td>
+
+
+<td className="px-4 py-3 text-right tabular-nums">
+    <span className="inline-flex min-w-6 items-center justify-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+        {row.events_count}
+    </span>
+</td>
+                                        <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-500 dark:text-slate-400">
                                             {row.created_at ?? '—'}
                                         </td>
-                                        <td className="px-4 py-3 whitespace-nowrap text-xs text-slate-500 dark:text-slate-400">
+                                        <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-500 dark:text-slate-400">
                                             {row.updated_at ?? '—'}
                                         </td>
                                         <td className="px-4 py-3 text-right">
@@ -267,7 +370,7 @@ export default function Index({ conversions }: Props) {
                         </table>
                     </div>
 
-                    {/* wire up conversions.links here for pagination */}
+                    <PaginationBar links={conversions.links} from={conversions.from} to={conversions.to} total={conversions.total} />
                 </div>
             </div>
 
@@ -312,42 +415,66 @@ export default function Index({ conversions }: Props) {
                                 </div>
                             )}
 
-                            {!loading && !error && events.length === 0 && (
+                            {!loading && !error && groups.length === 0 && (
                                 <div className="px-6 py-10 text-center text-sm text-slate-400 dark:text-slate-600">
                                     No events recorded for this click.
                                 </div>
                             )}
 
-                            {!loading && !error && events.length > 0 && (
-                                <table className="w-full border-collapse text-xs">
-                                    <thead>
-                                        <tr className="sticky top-0 border-b border-slate-200 bg-slate-50 text-left font-medium text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
-                                            {HISTORY_COLUMNS.map((col) => (
-                                                <th key={col.key} className="whitespace-nowrap px-3 py-2">
-                                                    {col.label}
-                                                </th>
-                                            ))}
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {events.map((ev) => (
-                                            <tr
-                                                key={ev.id}
-                                                className="border-b border-slate-100 last:border-0 hover:bg-slate-50 dark:border-slate-800/60 dark:hover:bg-slate-800/40"
-                                            >
-                                                {HISTORY_COLUMNS.map((col) => (
-                                                    <td key={col.key} className="whitespace-nowrap px-3 py-2 text-slate-700 dark:text-slate-300">
-                                                        {col.key === 'status' ? (
-                                                            <StatusBadge status={ev.status} />
-                                                        ) : (
-                                                            ev[col.key] ?? <span className="text-slate-300 dark:text-slate-700">—</span>
-                                                        )}
-                                                    </td>
-                                                ))}
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                            {!loading && !error && groups.length > 0 && (
+                                <div className="divide-y divide-slate-200 dark:divide-slate-800">
+                                    {groups.map((group) => {
+                                        const events = group.events ?? [];
+                                        return (
+                                            <div key={group.commission_id ?? 'none'} className="p-4">
+                                                <div className="mb-2 flex items-center gap-2">
+                                                    <span className="font-mono text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                                        Commission: {group.commission_id ?? '—'}
+                                                    </span>
+                                                    <StatusBadge status={group.latest_status} />
+                                                    <span className="text-xs text-slate-400 dark:text-slate-600">
+                                                        {events.length} update{events.length === 1 ? '' : 's'}
+                                                    </span>
+                                                    {group.snapshot && (
+                                                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                                                            final {group.snapshot.value.toFixed(2)}, loss {group.snapshot.loss.toFixed(2)}
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                <table className="w-full border-collapse text-xs">
+                                                    <thead>
+                                                        <tr className="border-b border-slate-200 bg-slate-50 text-left font-medium text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
+                                                            {HISTORY_COLUMNS.map((col) => (
+                                                                <th key={col.key} className="whitespace-nowrap px-3 py-2">
+                                                                    {col.label}
+                                                                </th>
+                                                            ))}
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {events.map((ev) => (
+                                                            <tr
+                                                                key={ev.id}
+                                                                className="border-b border-slate-100 last:border-0 hover:bg-slate-50 dark:border-slate-800/60 dark:hover:bg-slate-800/40"
+                                                            >
+                                                                {HISTORY_COLUMNS.map((col) => (
+                                                                    <td key={col.key} className="whitespace-nowrap px-3 py-2 text-slate-700 dark:text-slate-300">
+                                                                        {col.key === 'status' ? (
+                                                                            <StatusBadge status={ev.status} />
+                                                                        ) : (
+                                                                            ev[col.key] ?? <span className="text-slate-300 dark:text-slate-700">—</span>
+                                                                        )}
+                                                                    </td>
+                                                                ))}
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
                             )}
                         </div>
                     </div>

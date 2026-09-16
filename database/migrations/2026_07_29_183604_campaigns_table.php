@@ -26,7 +26,7 @@ return new class extends Migration
 
         Schema::create('campaigns_traffic_ids', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('campaign_id')->constrained()->restrictOnDelete();
+            $table->foreignId('campaign_id')->constrained()->cascadeOnDelete();
             $table->string('traffic_campaign_id')->unique();
             $table->string('status')->default('active');
             $table->timestamps();
@@ -34,8 +34,8 @@ return new class extends Migration
 
         Schema::create('campaigns_offers', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('campaign_id')->constrained()->restrictOnDelete();
-            $table->foreignId('offer_id')->constrained()->restrictOnDelete();
+            $table->foreignId('campaign_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('offer_id')->constrained()->cascadeOnDelete();
             $table->unsignedBigInteger('current_impressions')->default(0);
             $table->unsignedBigInteger('current_views')->default(0);
             $table->unsignedBigInteger('cap_views')->default(0);

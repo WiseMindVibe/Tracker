@@ -1,10 +1,22 @@
-function getNestedValue(object, path) {
-    return path
-        .split('.')
-        .reduce((value, key) => value?.[key], object);
+interface Column {
+    field: string;
+    label: string;
+    relation?: string;
 }
 
-export default function Show({ title, columns, rows }) {
+interface Props {
+    title: string;
+    columns: Column[];
+    rows: { data: Record<string, any>[] };
+}
+
+function getNestedValue(object: Record<string, any>, path: string): unknown {
+    return path
+        .split('.')
+        .reduce((value: any, key: string) => value?.[key], object);
+}
+
+export default function Show({ title, columns, rows }: Props) {
     return (
         <div>
             <h1>{title}</h1>

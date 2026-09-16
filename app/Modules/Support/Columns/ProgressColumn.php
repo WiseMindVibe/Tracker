@@ -3,13 +3,15 @@
 namespace App\Modules\Support\Columns;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ProgressColumn extends Column
 {
     public function __construct(
-        public string $relation,      // e.g. "campaignOffers"
-        public string $currentField,  // e.g. "current_views"
-        public string $capField,      // e.g. "cap_views"
+        public string $field,
+        public string $relation,
+        public string $currentField,
+        public string $capField,
         public ?string $label = '-',
         public bool $sortable = false,
     ) {}
@@ -28,7 +30,37 @@ class ProgressColumn extends Column
 
     public function applySort(Builder $query, string $direction): void
     {
-        // not supported yet — no-op
+        $model = $query->getModel();
+        $relation = $model->{$this->relation}();
+
+        if (! $relation instanceof HasMany) {
+            return;
+        }
+
+        $relatedTable = $relation->getRelated()->getTable();
+
+        $foreignKey = $relation->getForeignKeyName();
+        $localKey = $relation->getLocalKeyName();
+
+        $parentTable = $model->getTable();
+
+        $current = "(SELECT COALESCE(SUM({$relatedTable}.{$this->currentField}), 0)
+            FROM {$relatedTable}
+            WHERE {$relatedTable}.{$foreignKey} = {$parentTable}.{$localKey})";
+
+        $cap = "(SELECT COALESCE(SUM({$relatedTable}.{$this->capField}), 0)
+            FROM {$relatedTable}
+            WHERE {$relatedTable}.{$foreignKey} = {$parentTable}.{$localKey})";
+
+        $query
+            ->orderByRaw(
+                "CASE
+                    WHEN {$cap} > 0
+                    THEN {$current} / {$cap}
+                    ELSE 0
+                END {$direction}"
+            )
+            ->orderByRaw("{$cap} {$direction}");
     }
 
     public function jsonSerialize(): array
@@ -36,7 +68,7 @@ class ProgressColumn extends Column
         return [
             'type' => $this->type(),
             'relation' => $this->relation,
-            'field' => $this->relation, // for React key consistency
+            'field' => $this->field,
             'currentKey' => "{$this->relation}_sum_{$this->currentField}",
             'capKey' => "{$this->relation}_sum_{$this->capField}",
             'label' => $this->label,

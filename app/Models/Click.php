@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
+use Database\Factories\ClickFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Click extends Model
 {
-    /** @use HasFactory<\Database\Factories\ClickFactory> */
+    /** @use HasFactory<ClickFactory> */
     use HasFactory;
 
     public $table = 'clicks';
@@ -45,6 +46,11 @@ class Click extends Model
     public function campaign()
     {
         return $this->belongsTo(Campaign::class);
+    }
+
+    public function trafficCampaign()
+    {
+        return $this->belongsTo(CampaignTrafficId::class);
     }
 
     public function offer()

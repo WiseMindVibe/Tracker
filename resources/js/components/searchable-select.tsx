@@ -6,6 +6,7 @@ interface Props {
     value: string;
     placeholder: string;
     onChange: (value: string) => void;
+    disabled?: boolean;
 }
 
 export default function SearchableSelect({
@@ -14,6 +15,7 @@ export default function SearchableSelect({
     value,
     placeholder,
     onChange,
+    disabled = false,
 }: Props) {
     const [search, setSearch] = useState('');
     const [isOpen, setIsOpen] = useState(false);
@@ -102,6 +104,7 @@ export default function SearchableSelect({
                 type="text"
                 value={search}
                 placeholder={placeholder}
+                disabled={disabled}
                 onFocus={() => {
                     setIsOpen(true);
                     setHighlightedIndex(0);

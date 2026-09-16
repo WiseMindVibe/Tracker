@@ -18,7 +18,6 @@ return new class extends Migration
             $table->string('shortcut')->nullable();
         });
 
-
         Schema::create('traffic_field_definitions', function (Blueprint $table) {
             $table->id();
             $table->foreignId('traffic_catalog_id')->constrained('traffic_catalog')->restrictOnDelete();
@@ -38,13 +37,14 @@ return new class extends Migration
 
         Schema::create('traffic_accounts_credentials', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('traffic_account_id')->constrained()->restrictOnDelete();
+            $table->foreignId('traffic_account_id')->constrained()->cascadeOnDelete();
             $table->string('label')->nullable();
             $table->string('key');
             $table->text('value')->nullable();
             $table->timestamps();
         });
     }
+
     /**
      * Reverse the migrations.
      */

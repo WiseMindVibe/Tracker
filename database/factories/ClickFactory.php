@@ -25,7 +25,7 @@ class ClickFactory extends Factory
             'click_id' => 'clk_' . fake()->unique()->bothify('##########'),
             'offer_id' => Offer::query()->inRandomOrder()->value('id'),
             'campaign_id' => Campaign::query()->inRandomOrder()->value('id'),
-            'traffic_campaign_id' => CampaignTrafficId::query()->inRandomOrder()->value('id'),
+            'traffic_campaign_id' => CampaignTrafficId::query()->inRandomOrder()->value('traffic_campaign_id'),
 
             'status' => 'DUMMY',
 

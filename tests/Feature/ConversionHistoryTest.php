@@ -37,7 +37,7 @@ it('reports the latest status for each commission in conversion history', functi
     $click = Click::factory()->create([
         'offer_id' => $offer->id,
         'campaign_id' => $campaign->id,
-        'traffic_campaign_id' => $trafficCampaignId->id,
+        'traffic_campaign_id' => $trafficCampaignId->traffic_campaign_id,
     ]);
 
     foreach ([

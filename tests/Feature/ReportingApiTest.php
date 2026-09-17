@@ -44,7 +44,7 @@ function reportingFixture(?User $user = null): array
     Click::factory()->create([
         'offer_id' => $offer->id,
         'campaign_id' => $campaign->id,
-        'traffic_campaign_id' => $trafficCampaignId->id,
+        'traffic_campaign_id' => $trafficCampaignId->traffic_campaign_id,
         'country' => 'US',
         'cost' => 5.25,
         'created_at' => now(),

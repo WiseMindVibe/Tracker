@@ -305,7 +305,7 @@ function migrateOffers(PDO $old, PDO $new, array $validBlogIds): array
 
 // ---------------------------------------------------------------------
 // STEP 7: campaigns + campaigns_traffic_ids + campaigns_offers
-// Returns ['campaignToTrafficIdRow' => [...], 'orphanTrafficId' => int]
+// Returns ['campaignToTrafficIdValue' => [...], 'orphanTrafficId' => string]
 // ---------------------------------------------------------------------
 function migrateCampaigns(PDO $old, PDO $new): array
 {
@@ -327,25 +327,26 @@ function migrateCampaigns(PDO $old, PDO $new): array
     $insertExt = $new->prepare("INSERT INTO campaigns_traffic_ids
         (id, campaign_id, traffic_campaign_id, status, created_at, updated_at)
         VALUES (?, ?, ?, 'active', ?, ?)");
-    $campaignToTrafficIdRow = []; // old campaign_id -> new campaigns_traffic_ids.id (first match)
+    $campaignToTrafficIdValue = []; // old campaign_id -> traffic_campaign_id value (first match)
     $nextTrafficIdRowId = 0;
     foreach ($extIds as $e) {
         $insertExt->execute([$e['id'], $e['campaign_id'], $e['external_campaign_id'], now(), now()]);
-        if (!isset($campaignToTrafficIdRow[$e['campaign_id']])) {
-            $campaignToTrafficIdRow[$e['campaign_id']] = (int)$e['id'];
+        if (!isset($campaignToTrafficIdValue[$e['campaign_id']])) {
+            $campaignToTrafficIdValue[$e['campaign_id']] = $e['external_campaign_id'];
         }
         $nextTrafficIdRowId = max($nextTrafficIdRowId, (int)$e['id'] + 1);
     }
 
     // clicks.traffic_campaign_id is NOT NULL - any real campaign with no
-    // campaign_external_ids row still needs a traffic-id row to point to.
+    // campaign_external_ids row still needs a traffic-id value to point to.
     $insertPlaceholder = $new->prepare("INSERT INTO campaigns_traffic_ids
         (id, campaign_id, traffic_campaign_id, status, created_at, updated_at)
-        VALUES (?, ?, 'UNKNOWN_MIGRATED', 'active', ?, ?)");
+        VALUES (?, ?, ?, 'active', ?, ?)");
     foreach ($campaigns as $c) {
-        if (!isset($campaignToTrafficIdRow[$c['id']])) {
-            $insertPlaceholder->execute([$nextTrafficIdRowId, $c['id'], now(), now()]);
-            $campaignToTrafficIdRow[$c['id']] = $nextTrafficIdRowId;
+        if (!isset($campaignToTrafficIdValue[$c['id']])) {
+            $trafficCampaignValue = 'UNKNOWN_MIGRATED_'.$c['id'];
+            $insertPlaceholder->execute([$nextTrafficIdRowId, $c['id'], $trafficCampaignValue, now(), now()]);
+            $campaignToTrafficIdValue[$c['id']] = $trafficCampaignValue;
             $nextTrafficIdRowId++;
         }
     }
@@ -354,7 +355,7 @@ function migrateCampaigns(PDO $old, PDO $new): array
     // (unenforced FK in the old schema), we can't point at any real
     // campaign, so create ONE dedicated placeholder campaign + traffic-id
     // row for that case. Those clicks get campaign_id = NULL (allowed) and
-    // traffic_campaign_id = this placeholder's traffic-id row.
+    // traffic_campaign_id = this placeholder's traffic-id value.
     $placeholderCampaignId = (int)$new->query("SELECT COALESCE(MAX(id),0)+1 FROM campaigns")->fetchColumn();
     $anyTrafficAccountId = $new->query("SELECT id FROM traffic_accounts LIMIT 1")->fetchColumn();
     $new->prepare("INSERT INTO campaigns
@@ -365,7 +366,7 @@ function migrateCampaigns(PDO $old, PDO $new): array
         (id, campaign_id, traffic_campaign_id, status, created_at, updated_at)
         VALUES (?, ?, 'MIGRATION_ORPHAN', 'active', ?, ?)")
         ->execute([$nextTrafficIdRowId, $placeholderCampaignId, now(), now()]);
-    $orphanTrafficId = $nextTrafficIdRowId;
+    $orphanTrafficId = 'MIGRATION_ORPHAN';
 
     // campaigns_offers - old schema never enforced a FK on campaign_id here,
     // so skip + log any row whose campaign_id doesn't exist.
@@ -395,7 +396,7 @@ function migrateCampaigns(PDO $old, PDO $new): array
     }
 
     return [
-        'campaignToTrafficIdRow' => $campaignToTrafficIdRow,
+        'campaignToTrafficIdValue' => $campaignToTrafficIdValue,
         'orphanTrafficId' => $orphanTrafficId,
     ];
 }
@@ -403,7 +404,7 @@ function migrateCampaigns(PDO $old, PDO $new): array
 // ---------------------------------------------------------------------
 // STEP 8: clicks (CHUNKED - millions of rows expected)
 // ---------------------------------------------------------------------
-function migrateClicks(PDO $old, PDO $new, array $campaignToTrafficIdRow, int $orphanTrafficId, array $validOfferIds, int $chunkSize, array &$checkpoint, string $checkpointPath): void
+function migrateClicks(PDO $old, PDO $new, array $campaignToTrafficIdValue, string $orphanTrafficId, array $validOfferIds, int $chunkSize, array &$checkpoint, string $checkpointPath): void
 {
     $lastId = $checkpoint['clicks_last_id'] ?? 0;
     $orphanCampaignCount = 0;
@@ -448,8 +449,8 @@ function migrateClicks(PDO $old, PDO $new, array $campaignToTrafficIdRow, int $o
             }
 
             $campaignId = $r['campaign_id'];
-            if (isset($campaignToTrafficIdRow[$campaignId])) {
-                $trafficCampaignId = $campaignToTrafficIdRow[$campaignId];
+            if (isset($campaignToTrafficIdValue[$campaignId])) {
+                $trafficCampaignId = $campaignToTrafficIdValue[$campaignId];
             } else {
                 // orphaned campaign_id - old table never enforced this FK
                 $campaignId = null;
@@ -927,12 +928,12 @@ $STEPS = [
     },
     'campaigns'  => function () use ($old, $new, &$checkpoint, $CHECKPOINT) {
         $result = migrateCampaigns($old, $new);
-        $checkpoint['campaignToTrafficIdRow'] = $result['campaignToTrafficIdRow'];
+        $checkpoint['campaignToTrafficIdValue'] = $result['campaignToTrafficIdValue'];
         $checkpoint['orphanTrafficId'] = $result['orphanTrafficId'];
         saveCheckpoint($CHECKPOINT, $checkpoint);
     },
     'clicks' => function () use ($old, $new, &$checkpoint, $CHECKPOINT, $CHUNK_SIZE) {
-        $map = $checkpoint['campaignToTrafficIdRow'] ?? null;
+        $map = $checkpoint['campaignToTrafficIdValue'] ?? null;
         $orphanTrafficId = $checkpoint['orphanTrafficId'] ?? null;
         $validOfferIds = $checkpoint['validOfferIds'] ?? null;
         if ($map === null || $orphanTrafficId === null || $validOfferIds === null) {

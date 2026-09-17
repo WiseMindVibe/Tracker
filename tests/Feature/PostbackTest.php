@@ -64,9 +64,10 @@ it('persists a unique postback and acknowledges a duplicate', function (): void 
         'created_at' => now(),
         'updated_at' => now(),
     ]);
-    $trafficCampaignId = DB::table('campaigns_traffic_ids')->insertGetId([
+    $trafficCampaignId = 'test-traffic-id';
+    DB::table('campaigns_traffic_ids')->insert([
         'campaign_id' => $campaignId,
-        'traffic_campaign_id' => 'test-traffic-id',
+        'traffic_campaign_id' => $trafficCampaignId,
         'status' => 'active',
         'created_at' => now(),
         'updated_at' => now(),

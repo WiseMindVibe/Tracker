@@ -19,7 +19,7 @@ return new class extends Migration
 
             $table->foreignId('offer_id')->constrained()->restrictOnDelete();
             $table->foreignId('campaign_id')->nullable()->constrained()->restrictOnDelete();
-            $table->foreignId('traffic_campaign_id')->constrained('campaigns_traffic_ids')->noActionOnDelete();
+            $table->string('traffic_campaign_id');
             $table->string('status')->default('pending');
 
             $table->string('country', 2)->nullable();

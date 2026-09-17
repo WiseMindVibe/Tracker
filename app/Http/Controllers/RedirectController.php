@@ -30,11 +30,7 @@ class RedirectController extends Controller
         $fallbackURL = $campaign->fallback_url;
 
         // Identiy traffic campaign
-        if ($request->filled('campaign_id')) {
-            $trafficCampaignId = $campaign->trafficIds()
-                ->where('traffic_campaign_id', $request->query('campaign_id'))
-                ->value('id') ?? $request->query('campaign_id');
-        }
+        $trafficCampaignId = $request->query('campaign_id');
 
         // Choose a random offer from the campaign BASED ON WEIGHT SELECTION
         $campaignOffer = $this->pickEligibleOffer($campaign);

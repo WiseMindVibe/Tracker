@@ -55,7 +55,7 @@ class NotificationController extends Controller
                     'click_pk' => $event?->click_id,
                     'offer' => $event->click->offer->name,
                     'campaign' => $event->click->campaign->name,
-                    'traffic_campaign_id' => $event->click->trafficCampaign->traffic_campaign_id,
+                    'traffic_campaign_id' => $event->click->traffic_campaign_id,
                     'affiliate' => $event?->affiliateCatalog?->slug,
                     'commission_id' => $event?->commission_id,
                     'status' => $event?->status,

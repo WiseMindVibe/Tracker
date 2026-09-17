@@ -48,11 +48,6 @@ class Click extends Model
         return $this->belongsTo(Campaign::class);
     }
 
-    public function trafficCampaign()
-    {
-        return $this->belongsTo(CampaignTrafficId::class);
-    }
-
     public function offer()
     {
         return $this->belongsTo(Offer::class);

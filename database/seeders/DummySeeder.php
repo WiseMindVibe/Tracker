@@ -136,7 +136,7 @@ class DummySeeder extends Seeder
         for ($i = 0; $i < 1000; $i++) {
 
             $click = Click::factory()->make([
-                'traffic_campaign_id' => $allCampaignTrafficIds->random()->id,
+                'traffic_campaign_id' => $allCampaignTrafficIds->random()->traffic_campaign_id,
                 'offer_id' => $allOffers->random()->id,
                 'campaign_id' => $allCampaigns->random()->id,
                 'created_at' => fake()->dateTimeBetween('-3 months', 'now'),

@@ -21,8 +21,8 @@ class CatalogSeeder extends Seeder
 
     public function AffiliateNetworks(): void
     {
-        $this->Yieldkit();
         $this->Oponia();
+        $this->Yieldkit();
     }
 
     public function TrafficSources(): void

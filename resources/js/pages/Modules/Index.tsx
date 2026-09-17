@@ -151,6 +151,8 @@ export default function Index({
         <table className="w-max min-w-full table-auto text-sm">
             <thead>
                 <tr className="border-b border-border bg-muted/50">    
+                    <th>Actions</th>
+
                     {columns.map((column, index) => {
                         const isCurrent = sort?.column == column.field;
                         return (
@@ -176,7 +178,6 @@ export default function Index({
                             </th>
                         );
                     })}
-                    <th>Actions</th>
                 </tr>
             </thead>
 
@@ -184,6 +185,26 @@ export default function Index({
                 {rows.data.map((row) => (
                     <tr key={row.id}
                     className='border-b border-border transition-colors hover:bg-muted/50'>
+
+                                                <td className='text-center space-x-2'>
+                            {hasView && (
+                                <Link
+                                    href={`/m/${module}/${row.id}/view`}
+                                    className='rounded-md bg-secondary px-2 py-1 text-sm font-medium text-secondary-foreground hover:bg-secondary/90'
+                                >
+                                    View
+                                </Link>
+                            )}
+                            {hasEdit && (
+                                <Link
+                                    href={`/m/${module}/${row.id}/edit`}
+                                    className='rounded-md bg-primary px-2 py-1 text-sm font-medium text-primary-foreground hover:bg-primary/90'
+                                >
+                                    Edit
+                                </Link>
+                            )}
+                        </td>
+
                         {columns.map((column, index) => (
                             <td
                                 key={`${row.id}-${column.field}-${index}`}
@@ -211,24 +232,6 @@ export default function Index({
                                 )}
                             </td>
                         ))}
-                        <td className='text-center space-x-2'>
-                            {hasView && (
-                                <Link
-                                    href={`/m/${module}/${row.id}/view`}
-                                    className='rounded-md bg-secondary px-2 py-1 text-sm font-medium text-secondary-foreground hover:bg-secondary/90'
-                                >
-                                    View
-                                </Link>
-                            )}
-                            {hasEdit && (
-                                <Link
-                                    href={`/m/${module}/${row.id}/edit`}
-                                    className='rounded-md bg-primary px-2 py-1 text-sm font-medium text-primary-foreground hover:bg-primary/90'
-                                >
-                                    Edit
-                                </Link>
-                            )}
-                        </td>
                     </tr>
                 ))}
             </tbody>

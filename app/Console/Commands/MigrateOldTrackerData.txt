@@ -50,6 +50,20 @@ $NEW_DB = [
     'pass' => '',
 ];
 
+// $OLD_DB = [
+//     'host' => '127.0.0.1',
+//     'name' => 'u491781300_Tracker',
+//     'user' => 'u491781300_Wise',
+//     'pass' => 'A7vk&itZuk!',
+// ];
+// 
+// $NEW_DB = [
+//     'host' => '127.0.0.1',
+//     'name' => 'u491781300_Tracking',
+//     'user' => 'u491781300_WiseAdmin',
+//     'pass' => 'p!4M8tsT',
+// ];
+
 $COMPANY_NAME = 'WiseMindVibe';
 
 $CHUNK_SIZE = 20000;                    // rows per batch for big tables
@@ -127,8 +141,8 @@ function migrateAffiliateCatalog(PDO $old, PDO $new): array
         SELECT DISTINCT affiliate_program
         FROM affiliate_accounts
         ORDER BY CASE
-            WHEN affiliate_program = 'YieldKit' THEN 1
-            WHEN affiliate_program = 'Oponia' THEN 2
+            WHEN affiliate_program = 'YieldKit' THEN 2
+            WHEN affiliate_program = 'Oponia' THEN 1
             ELSE 3
         END
     ")->fetchAll(PDO::FETCH_COLUMN);
@@ -160,32 +174,108 @@ function migrateAffiliateCatalog(PDO $old, PDO $new): array
 // ---------------------------------------------------------------------
 function migrateAffiliateAccounts(PDO $old, PDO $new, array $catalogMap): void
 {
-    $rows = $old->query("SELECT * FROM affiliate_accounts")->fetchAll(PDO::FETCH_ASSOC);
-    $insertAcc = $new->prepare("INSERT INTO affiliate_accounts
-        (id, company_id, affiliate_catalog_id, status, created_at, updated_at)
+    // Force the original affiliate account ID order:
+    // ID 1 = Oponia
+    // ID 2 = YieldKit
+
+    $rows = $old->query("
+        SELECT *
+        FROM affiliate_accounts
+        ORDER BY CASE
+            WHEN affiliate_program = 'Oponia' THEN 1
+            WHEN affiliate_program = 'YieldKit' THEN 2
+            ELSE 3
+        END
+    ")->fetchAll(PDO::FETCH_ASSOC);
+
+    $insertAcc = $new->prepare("
+        INSERT INTO affiliate_accounts
+            (id, company_id, affiliate_catalog_id, status, created_at, updated_at)
         VALUES (?, 1, ?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE id = id");
+        ON DUPLICATE KEY UPDATE
+            affiliate_catalog_id = VALUES(affiliate_catalog_id),
+            status = VALUES(status),
+            updated_at = VALUES(updated_at)
+    ");
 
     foreach ($rows as $r) {
+
+        // Original desired account IDs:
+        // Oponia  -> 1
+        // YieldKit -> 2
+        if ($r['affiliate_program'] === 'Oponia') {
+            $newAccountId = 1;
+        } elseif ($r['affiliate_program'] === 'YieldKit') {
+            $newAccountId = 2;
+        } else {
+            // For any other affiliate network, keep its original ID.
+            $newAccountId = (int) $r['id'];
+        }
+
         $catalogId = $catalogMap[$r['affiliate_program']];
         $status = $r['active'] ? 'active' : 'inactive';
-        $insertAcc->execute([$r['id'], $catalogId, $status, $r['created_at'], $r['updated_at']]);
-    }
 
-    $creds = $old->query("SELECT * FROM affiliate_account_credentials")->fetchAll(PDO::FETCH_ASSOC);
-    $insertCred = $new->prepare("INSERT INTO affiliate_accounts_credentials
-        (affiliate_account_id, label, `key`, value, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?)");
-    foreach ($creds as $c) {
-        $insertCred->execute([
-            $c['affiliate_account_id'],
-            ucwords(str_replace('_', ' ', $c['field_key'])), // label guess
-            $c['field_key'],
-            $c['field_value'],
-            now(), now(),
+        $insertAcc->execute([
+            $newAccountId,
+            $catalogId,
+            $status,
+            $r['created_at'],
+            $r['updated_at']
         ]);
     }
-    echo "Migrated " . count($rows) . " affiliate_accounts, " . count($creds) . " credentials\n";
+
+    // Migrate credentials using the NEW affiliate account IDs.
+    $creds = $old->query("
+        SELECT *
+        FROM affiliate_account_credentials
+    ")->fetchAll(PDO::FETCH_ASSOC);
+
+    $oldAccountToNewAccount = [];
+
+    foreach ($rows as $r) {
+        if ($r['affiliate_program'] === 'Oponia') {
+            $oldAccountToNewAccount[(int) $r['id']] = 1;
+        } elseif ($r['affiliate_program'] === 'YieldKit') {
+            $oldAccountToNewAccount[(int) $r['id']] = 2;
+        } else {
+            $oldAccountToNewAccount[(int) $r['id']] = (int) $r['id'];
+        }
+    }
+
+    // Remove existing credentials for these accounts before re-inserting them.
+    $deleteCred = $new->prepare("
+        DELETE FROM affiliate_accounts_credentials
+        WHERE affiliate_account_id = ?
+    ");
+
+    $insertCred = $new->prepare("
+        INSERT INTO affiliate_accounts_credentials
+            (affiliate_account_id, label, `key`, value, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ");
+
+    foreach ($creds as $c) {
+
+        $oldAccountId = (int) $c['affiliate_account_id'];
+
+        if (!isset($oldAccountToNewAccount[$oldAccountId])) {
+            continue;
+        }
+
+        $newAccountId = $oldAccountToNewAccount[$oldAccountId];
+
+        $insertCred->execute([
+            $newAccountId,
+            ucwords(str_replace('_', ' ', $c['field_key'])),
+            $c['field_key'],
+            $c['field_value'],
+            now(),
+            now(),
+        ]);
+    }
+
+    echo "Migrated " . count($rows) . " affiliate_accounts with fixed order: Oponia=1, YieldKit=2, "
+        . count($creds) . " credentials\n";
 }
 
 // ---------------------------------------------------------------------

@@ -37,7 +37,7 @@ const mainNavItems: NavItem[] = [
         href: '/dashboard',
         icon: LayoutGrid,
     },
-        {
+    {
         title: 'Reporting',
         href: '/reporting',
         icon: BarChart3,

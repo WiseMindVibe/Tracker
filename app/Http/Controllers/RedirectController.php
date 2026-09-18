@@ -29,6 +29,10 @@ class RedirectController extends Controller
         // SafeRedirect URL
         $fallbackURL = $campaign->fallback_url;
 
+        if (! $fallbackURL) {
+            abort(404, 'Campaign fallback URL is not configured.');
+        }
+
         // Identiy traffic campaign
         $trafficCampaignId = $request->query('campaign_id');
 
@@ -49,10 +53,16 @@ class RedirectController extends Controller
             if (! $debug) {
                 return $this->safeRedirect($fallbackURL);
             } else {
-                return 'Campign Country MISMATCH! Got: '.$country.'. Expected: '.$campaignOffer->offer->country;
+                return 'Campign Country MISMATCH! Got: ' . $country . '. Expected: ' . $campaignOffer->offer->country;
             }
         }
 
+        $cost = $request->query('cost');
+        if (!is_numeric($cost)) {
+            $cost = 0.0;
+        } else {
+            $cost = (float) $cost;
+        }
         // Receive paramerters from the traffic source
         // & Generate A click_id
         $click = new Click([
@@ -65,7 +75,8 @@ class RedirectController extends Controller
             'region' => $request->query('region'),
             'language' => $request->query('language'),
             'device' => $request->query('device'),
-            'os_version' => $request->query('osversion'),
+            'os' => $request->query('os'),
+            'os_version' => $request->query('os_version'),
             'browser' => $request->query('browser'),
             'browser_version' => $request->query('browser_version'),
             'connection_type' => $request->query('connection_type'),
@@ -73,7 +84,7 @@ class RedirectController extends Controller
             'isp' => $request->query('isp'),
             'zoneid' => $request->query('zoneid'),
             'subzone_id' => $request->query('subzone_id'),
-            'cost' => $request->query('cost'),
+            'cost' => $cost,
             'user_activity' => $request->query('user_activity'),
             'user_agent' => $request->userAgent(),
             'ip_address' => $request->ip(),
@@ -115,7 +126,7 @@ class RedirectController extends Controller
                 json_encode($payload)
             );
 
-            $blogURL = $campaignOffer->offer->blog->domain.'?ref='.urlencode($reference);
+            $blogURL = $campaignOffer->offer->blog->domain . '?ref=' . urlencode($reference);
 
             $campaignOffer->increment('current_views');
 
@@ -126,6 +137,8 @@ class RedirectController extends Controller
                 'click_id' => $click['click_id'],
                 'status' => 'direct',
             ]);
+
+            $campaignOffer->increment('current_views');
 
             // Save Data to clicks
             $click->save();
@@ -144,7 +157,7 @@ class RedirectController extends Controller
             ->with('offer')
             ->get()
             // / - Check if offer is active
-            ->filter(fn ($campaignOffer) => $campaignOffer->offer?->status === 'active');
+            ->filter(fn($campaignOffer) => $campaignOffer->offer?->status === 'active');
 
         if ($campaignOffers->isEmpty()) {
             return null;

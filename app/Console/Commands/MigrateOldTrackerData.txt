@@ -403,7 +403,7 @@ function migrateCampaigns(PDO $old, PDO $new): array
     $insert = $new->prepare("INSERT INTO campaigns
         (id, uuid, traffic_account_id, name, country, is_tester, fallback_url, status,
          impressions, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, NULL, 'active', 0, ?, ?)");
+        VALUES (?, ?, ?, ?, ?, ?, 'https://google.com', 'active', 0, ?, ?)");
     foreach ($campaigns as $c) {
         $insert->execute([
             $c['id'], $c['uuid'], $c['traffic_source_id'], $c['name'], $c['country'],

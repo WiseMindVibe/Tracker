@@ -130,8 +130,8 @@ function StatusBadge({ status }: { status: string | null }) {
 
 function ReadBadge({ isRead }: { isRead: boolean }) {
     const tone = isRead
-        ? 'bg-slate-100 text-slate-500 ring-slate-500/20 dark:bg-slate-400/10 dark:text-slate-400 dark:ring-slate-400/20'
-        : 'bg-indigo-50 text-indigo-700 ring-indigo-600/20 dark:bg-indigo-400/10 dark:text-indigo-400 dark:ring-indigo-400/20';
+    ? 'bg-slate-100 text-slate-500 ring-slate-500/20 dark:bg-slate-400/10 dark:text-slate-400 dark:ring-slate-400/20'
+    : 'bg-red-50 text-red-700 ring-red-600/20 dark:bg-red-400/10 dark:text-red-400 dark:ring-red-400/20';
 
     return (
         <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${tone}`}>
@@ -300,7 +300,9 @@ export default function Index({ notifications, unreadCount, search }: Props) {
                                     <tr
                                         key={row.id}
                                         className={`border-b border-slate-100 last:border-0 hover:bg-slate-50 dark:border-slate-800/60 dark:hover:bg-slate-800/40 max-w-[220px] truncate ${
-                                            row.is_read ? '' : 'bg-indigo-50/40 dark:bg-indigo-400/[0.04]'
+                                            row.is_read
+                                            ? ''
+                                            : 'bg-red-50/70 dark:bg-red-400/[0.06]'
                                         }`}
                                     >
                                         <td className="px-4 py-3 font-mono text-[13px] text-slate-700 dark:text-slate-300 max-w-[220px] truncate">

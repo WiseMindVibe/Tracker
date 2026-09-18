@@ -96,7 +96,7 @@ class Config extends ModuleConfig
                 field: 'country',
                 label: 'Country',
                 type: 'country',
-                options: collect(config('countries'))->map(fn ($c) => [
+                options: collect(config('countries'))->map(fn($c) => [
                     'value' => $c['code'],
                     'label' => $c['name'],
                     'aliases' => $c['aliases'] ?? [],
@@ -116,10 +116,17 @@ class Config extends ModuleConfig
                 options: TrafficAccount::query()
                     ->with('trafficCatalog')
                     ->get()
-                    ->mapWithKeys(fn ($account) => [
+                    ->mapWithKeys(fn($account) => [
                         $account->id => $account->trafficCatalog?->name ?? "Account #{$account->id}",
                     ])
                     ->toArray(),
+            ),
+            new Field(
+                field: 'fallback_url',
+                label: 'Fallback URL',
+                type: 'url',
+                placeholder: 'https://google.com',
+                default: 'https://google.com'
             ),
             new Field(
                 field: 'status',

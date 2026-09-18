@@ -14,12 +14,12 @@ return new class extends Migration
         Schema::create('clicks', function (Blueprint $table) {
             $table->id();
 
-            $table->string('sub_id');
+            $table->string('sub_id')->nullable();
             $table->uuid('click_id')->unique();
 
             $table->foreignId('offer_id')->constrained()->restrictOnDelete();
-            $table->foreignId('campaign_id')->nullable()->constrained()->restrictOnDelete();
-            $table->string('traffic_campaign_id');
+            $table->foreignId('campaign_id')->constrained()->restrictOnDelete();
+            $table->string('traffic_campaign_id')->nullable();
             $table->string('status')->default('pending');
 
             $table->string('country', 2)->nullable();

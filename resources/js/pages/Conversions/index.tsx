@@ -362,8 +362,8 @@ className="border-b border-slate-200 transition-colors last:border-0
                                                                         ? Number(commission.commission).toFixed(2)
                                                                         : '—'}
                                                                 </span>
-
-                                                                <span className="font-sans text-rose-700 dark:text-rose-300">
+                                                                            |
+                                                                <span className={`font-sans ${lossTone(commission.loss)}`}>
                                                                     loss {commission.loss !== null ? Number(commission.loss).toFixed(2) : '0.00'}
                                                                 </span>
                                                             </span>

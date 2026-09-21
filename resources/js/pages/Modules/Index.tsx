@@ -1,0 +1,386 @@
+import ChipListCell from '@/components/ChipListCell';
+import ProgressCell from '@/components/progress-cell';
+import { Link, Head, router } from '@inertiajs/react';
+import { ArrowUp, ArrowDown, ArrowUpDown, Copy } from 'lucide-react';
+import { useEffect, useState } from 'react';
+
+import DateTime from '@/components/date-time';
+import { isDateField } from '@/lib/format-date';
+
+
+
+interface PaginationLink {
+    url: string | null;
+    label: string;
+    active: boolean;
+}
+
+interface Props {
+    module: string;
+    titles: Titles;
+    columns: Column[];
+    actions?: Actions[];
+    rows: {
+        data: any[];
+        links: PaginationLink[];
+        current_page: number;
+        last_page: number;
+        total: number;
+        from: number | null;
+        to: number | null;
+    };
+    sort?: {
+        column: string;
+        direction: "asc" | "desc";
+    };
+    search?: string | null;
+        perPage: number;
+    perPageOptions: number[];
+
+}
+
+interface Titles {
+    page: string;
+    header: string;
+    header_s: string;
+}
+
+interface Actions {
+    type: "create" | "edit" | "view";
+    label?: string;
+    href?: string;
+}
+
+interface BaseColumn {
+    field: string;
+    label: string;
+    sortable?: boolean;
+
+}
+interface TextColumn extends BaseColumn { type: "text" }
+interface RelationColumn extends BaseColumn { type: "relation"; relation: string }
+interface CountColumn extends BaseColumn { type: "count"; relation: string }
+interface ProgressColumn extends BaseColumn { type: "progress"; currentKey: string; capKey: string }
+interface ChipListColumn extends BaseColumn { type: "chip_list"; relation: string }
+interface DateTimeColumn extends BaseColumn { type: "datetime" }
+
+type Column = TextColumn | RelationColumn | CountColumn | ProgressColumn | ChipListColumn | DateTimeColumn;
+
+export default function Index({
+    module,
+    titles,
+    columns,
+    actions,
+    rows,
+    sort,
+    search,
+    perPage, 
+    perPageOptions,
+}: Props){
+
+    const hasCreate = actions?.find((a) => a.type === 'create');
+    const hasEdit = actions?.find((a) => a.type === 'edit');
+    const hasView = actions?.find((a) => a.type === 'view');
+        const [searchTerm, setSearchTerm] = useState(search ?? '');
+
+
+    function resolveRelationValue(row: any, relationPath: string, field: string) {
+        const value = relationPath
+            .split('.')
+            .reduce((acc, key) => acc?.[key], row);
+        return value?.[field];
+    }
+
+    function handleSort(column: Column){
+        if(!column.sortable) return;
+
+        const isCurrent = sort?.column === column.field;
+        const direction = isCurrent && sort?.direction === "asc" ? "desc" : "asc";
+
+        router.get(
+            window.location.pathname,
+            { sort: column.field, direction },
+            { preserveState: true, preserveScroll: true, replace: true }
+
+        )
+    }
+
+    function copyToClipboard(value: string) {
+        navigator.clipboard.writeText(value);
+    }
+
+    function visit(overrides: Record<string, unknown> = {}) {
+    router.get(
+        window.location.pathname,
+        {
+            ...(sort ? { sort: sort.column, direction: sort.direction } : {}),
+            search: searchTerm || undefined,
+            per_page: perPage,
+            ...overrides,
+        },
+        { preserveState: true, preserveScroll: true, replace: true },
+    );
+}
+
+function handleSort(column: Column) {
+    if (!column.sortable) return;
+
+    const isCurrent = sort?.column === column.field;
+    const direction = isCurrent && sort?.direction === 'asc' ? 'desc' : 'asc';
+
+    visit({ sort: column.field, direction });
+}
+
+useEffect(() => {
+    const handle = setTimeout(() => {
+        if (searchTerm === (search ?? '')) return;
+        visit({ search: searchTerm || undefined });
+    }, 350);
+
+    return () => clearTimeout(handle);
+}, [searchTerm]);
+
+const changePerPage = (value: number) => visit({ per_page: value });
+
+
+    useEffect(() => {
+        const handle = setTimeout(() => {
+            if (searchTerm === (search ?? '')) return;
+
+            router.get(
+                window.location.pathname,
+                {
+                    ...(sort ? { sort: sort.column, direction: sort.direction } : {}),
+                    search: searchTerm || undefined,
+                },
+                { preserveState: true, preserveScroll: true, replace: true }
+            );
+        }, 350);
+
+        return () => clearTimeout(handle);
+    }, [searchTerm]);
+
+
+    return ( 
+    <div className="ml-5 mt-5">
+
+        <Head title={titles.page}/>
+
+        <div className="flex justify-between items-center pe-20">
+
+            <h1 className="text-2xl font-semibold tracking-tight">
+                {titles.header}
+            </h1>
+
+            {hasCreate && (
+                <Link
+                    href={`/m/${module}/create`}
+                    className='inline-flex items-center rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90'
+                    >
+                    + {hasCreate.label ?? `New ${titles.header_s}`}
+                </Link>
+            )}
+        </div>
+        <div className="mt-3 flex items-center justify-between gap-4 pe-20">
+    <input
+        type="text"
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        placeholder="Search by name..."
+        className="w-full max-w-xs rounded-md border border-border bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/50"
+    />
+
+    {perPageOptions.length > 1 && (
+        <label className="flex shrink-0 items-center gap-2 text-sm text-muted-foreground">
+            Rows per page
+            <select
+                value={perPage}
+                onChange={(e) => changePerPage(Number(e.target.value))}
+                className="rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/50"
+            >
+                {perPageOptions.map((n) => (
+                    <option key={n} value={n}>
+                        {n}
+                    </option>
+                ))}
+            </select>
+        </label>
+    )}
+</div>
+
+<div className="mt-3 flex items-center justify-between">
+    <p className="text-sm text-muted-foreground">
+        {rows.total > 0
+            ? `Showing ${rows.from}–${rows.to} of ${rows.total}`
+            : 'No results'}
+    </p>
+
+    <div className="flex items-center gap-1">
+        {rows.links.map((link, index) => (
+            link.url ? (
+                <Link
+                    key={index}
+                    href={link.url}
+                    preserveState
+                    preserveScroll
+                    className={`rounded-md px-3 py-1.5 text-sm font-medium
+                        ${link.active
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-secondary text-secondary-foreground hover:bg-secondary/90'}`}
+                    dangerouslySetInnerHTML={{ __html: link.label }}
+                />
+            ) : (
+                <span
+                    key={index}
+                    className="rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50"
+                    dangerouslySetInnerHTML={{ __html: link.label }}
+                />
+            )
+        ))}
+    </div>
+</div>
+
+        <div className="mt-3 overflow-x-auto rounded-lg border border-border">
+        <table className="w-max min-w-full table-auto text-sm">
+            <thead>
+                <tr className="border-b border-border bg-muted/50">    
+                    <th>Actions</th>
+
+                    {columns.map((column, index) => {
+                        const isCurrent = sort?.column == column.field;
+                        return (
+                            <th key={`${column.field}-${index}`}
+                            onClick={() => handleSort(column)}
+                            className={`px-2 py-1.5 text-left font-medium text-muted-foreground whitespace-nowrap
+                            ${column.sortable ? "cursor-pointer select-none hover:text-foreground" :
+                                ""
+                            }`}>
+
+                                <span className='inline-flex items-center gap-1'>
+                                    {column.label}
+                                    {column.sortable && (
+                                        isCurrent ? (
+                                            sort.direction === "asc"
+                                            ? <ArrowUp className='h-3.5 w-3.5'/>
+                                            : <ArrowDown className='h-3.5 w-3.5'/>
+                                        ) : (
+                                            <ArrowUpDown className='h-3.5 w-3.5 opacity-30' />
+                                        )
+                                    )}
+                                </span>
+                            </th>
+                        );
+                    })}
+                </tr>
+            </thead>
+
+            <tbody>
+                {rows.data.map((row) => (
+                    <tr key={row.id}
+                                className="border-b border-border transition-colors even:bg-muted/40 hover:bg-accent"                    
+                            >
+
+                                                <td className='text-center space-x-2'>
+                            {hasView && (
+                                <Link
+                                    href={`/m/${module}/${row.id}/view`}
+                                    className='rounded-md bg-secondary px-2 py-1 text-sm font-medium text-secondary-foreground hover:bg-secondary/90'
+                                >
+                                    View
+                                </Link>
+                            )}
+                            {hasEdit && (
+                                <Link
+                                    href={`/m/${module}/${row.id}/edit`}
+                                    className='rounded-md bg-primary px-2 py-1 text-sm font-medium text-primary-foreground hover:bg-primary/90'
+                                >
+                                    Edit
+                                </Link>
+                            )}
+                        </td>
+
+                        {columns.map((column, index) => (
+                            <td
+                                key={`${row.id}-${column.field}-${index}`}
+                                className="px-3 py-2"
+                            >
+                                {column.type === "relation" ? (
+                                    resolveRelationValue(
+                                        row,
+                                        column.relation,
+                                        column.field
+                                    )
+
+                                ) : column.type === "count" ? (
+                                    row[`${column.relation}_count`] ?? 0
+
+                                ) : column.type === "progress" ? (
+                                    <ProgressCell row={row} column={column} />
+                                ) : column.type === "chip_list" ? (
+                                    <ChipListCell row={row} column={column} />
+                                ) : column.type === "datetime" || isDateField(column.field) ? (
+                                    <DateTime value={row[column.field]} />
+                                ) : (
+                                    <div className="max-w-[220px] truncate">
+    {row[column.field]}
+</div>
+                                )}
+                            </td>
+                        ))}
+                    </tr>
+                ))}
+            </tbody>
+        </table>
+        </div>
+        <div className="mt-3 flex items-center justify-between">
+    <p className="text-sm text-muted-foreground">
+        {rows.total > 0
+            ? `Showing ${rows.from}–${rows.to} of ${rows.total}`
+            : 'No results'}
+    </p>
+
+    <div className="flex items-center gap-1">
+        {rows.links.map((link, index) => (
+            link.url ? (
+                <Link
+                    key={index}
+                    href={link.url}
+                    preserveState
+                    preserveScroll
+                    className={`rounded-md px-3 py-1.5 text-sm font-medium
+                        ${link.active
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-secondary text-secondary-foreground hover:bg-secondary/90'}`}
+                    dangerouslySetInnerHTML={{ __html: link.label }}
+                />
+            ) : (
+                <span
+                    key={index}
+                    className="rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50"
+                    dangerouslySetInnerHTML={{ __html: link.label }}
+                />
+            )
+        ))}
+    </div>
+</div>
+    </div>
+    )
+
+    function resolveRelationList(
+        row: any,
+        relationPath: string,
+        field: string
+    ) {
+        const relation = relationPath
+            .split('.')
+            .reduce((acc, key) => acc?.[key], row);
+
+        if (!Array.isArray(relation)) {
+            return [];
+        }
+
+        return relation
+            .map((item) => item?.[field])
+            .filter((value) => value !== null && value !== undefined);
+    }
+}

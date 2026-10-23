@@ -50,16 +50,19 @@ class ConversionEvent extends Model
         'event_occurred_at' => 'datetime',
     ];
 
+    /** @return BelongsTo<Click, $this> */
     public function click(): BelongsTo
     {
         return $this->belongsTo(Click::class);
     }
 
+    /** @return BelongsTo<AffiliateCatalog, $this> */
     public function affiliateCatalog(): BelongsTo
     {
         return $this->belongsTo(AffiliateCatalog::class);
     }
 
+    /** @return HasMany<Conversion, $this> */
     public function conversions(): HasMany
     {
         return $this->hasMany(Conversion::class, 'conversion_event_id');

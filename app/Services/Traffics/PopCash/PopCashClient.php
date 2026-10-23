@@ -24,6 +24,7 @@ class PopCashClient
             $url = $baseUrl.$campaignId;
 
             $response = Http::withHeaders([
+                'Content-Type' => 'application/json',
                 'X-Api-Key' => $apiKey,
             ])->put($url, [
                 'status' => self::STATUS_PAUSED,

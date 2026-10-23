@@ -15,11 +15,11 @@ type Props = {
 
 export default function PaginationBar({ links, from, to, total }: Props) {
     return (
-        <div className="mt-4 flex items-center justify-between">
-            <p className="text-sm text-slate-500 dark:text-slate-400">
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-center text-sm text-muted-foreground sm:text-left">
                 {total > 0 ? `Showing ${from}–${to} of ${total}` : 'No results'}
             </p>
-            <div className="flex items-center gap-1">
+            <div className="flex flex-wrap justify-center gap-1 sm:justify-end">
                 {links.map((link, index) =>
                     link.url ? (
                         <Link
@@ -27,17 +27,17 @@ export default function PaginationBar({ links, from, to, total }: Props) {
                             href={link.url}
                             preserveState
                             preserveScroll
-                            className={`rounded-md px-3 py-1.5 text-sm font-medium ${
+                            className={`inline-flex min-h-9 min-w-9 items-center justify-center rounded-md px-2.5 py-1.5 text-sm font-medium sm:px-3 ${
                                 link.active
-                                    ? 'bg-indigo-600 text-white'
-                                    : 'bg-white text-slate-600 ring-1 ring-inset ring-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700 dark:hover:bg-slate-800'
+                                    ? 'bg-primary text-primary-foreground'
+                                    : 'bg-background text-foreground ring-1 ring-inset ring-border hover:bg-accent'
                             }`}
                             dangerouslySetInnerHTML={{ __html: link.label }}
                         />
                     ) : (
                         <span
                             key={index}
-                            className="cursor-not-allowed rounded-md px-3 py-1.5 text-sm font-medium text-slate-300 dark:text-slate-700"
+                            className="inline-flex min-h-9 min-w-9 cursor-not-allowed items-center justify-center rounded-md px-2.5 py-1.5 text-sm font-medium text-muted-foreground opacity-50 sm:px-3"
                             dangerouslySetInnerHTML={{ __html: link.label }}
                         />
                     ),

@@ -5,6 +5,7 @@ namespace App\Models;
 use Database\Factories\ClickFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Click extends Model
@@ -43,16 +44,19 @@ class Click extends Model
         'cost' => 'decimal:6',
     ];
 
-    public function campaign()
+    /** @return BelongsTo<Campaign, $this> */
+    public function campaign(): BelongsTo
     {
         return $this->belongsTo(Campaign::class);
     }
 
-    public function offer()
+    /** @return BelongsTo<Offer, $this> */
+    public function offer(): BelongsTo
     {
         return $this->belongsTo(Offer::class);
     }
 
+    /** @return HasMany<ConversionEvent, $this> */
     public function conversionEvents(): HasMany
     {
         return $this->hasMany(ConversionEvent::class);

@@ -18,7 +18,7 @@
         "laravel/wayfinder": "^0.1.14"
     },
     "require-dev": {
-        "fakerphp/faker": "^1.24",
+        "fakerphp/faker": "*",
         "larastan/larastan": "^3.9",
         "laravel/boost": "^2.2",
         "laravel/pail": "^1.2.5",

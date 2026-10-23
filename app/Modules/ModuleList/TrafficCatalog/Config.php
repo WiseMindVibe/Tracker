@@ -4,15 +4,10 @@ namespace App\Modules\ModuleList\TrafficCatalog;
 
 use App\Models\TrafficCatalog;
 use App\Modules\ModuleConfig;
-use App\Modules\Support\Actions\CreateAction;
 use App\Modules\Support\Actions\ViewAction;
-use App\Modules\Support\Columns\PercentageColumn;
-use App\Modules\Support\Columns\RelationColumn;
 use App\Modules\Support\Columns\TextColumn;
 use App\Modules\Support\Field\Field;
-use App\Modules\Support\Filters\SelectFilter;
 use App\Modules\Support\Table\Table;
-use Override;
 
 class Config extends ModuleConfig
 {
@@ -21,7 +16,7 @@ class Config extends ModuleConfig
         return [
             'page' => 'Traffic Catalogs',
             'header' => 'Traffic Catalogs',
-            'header_s' => 'Traffic Catalog'
+            'header_s' => 'Traffic Catalog',
         ];
     }
 
@@ -36,10 +31,11 @@ class Config extends ModuleConfig
             columns: [
                 new TextColumn('id', 'ID'),
                 new TextColumn('name', 'Traffic Source'),
+                new TextColumn('shortcut', 'Shortcut'),
             ],
             filters: [],
             actions: [
-                new ViewAction(),
+                new ViewAction,
             ]
         );
     }

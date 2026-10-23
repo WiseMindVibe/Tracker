@@ -1,10 +1,10 @@
+import { Deferred, Head, router } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
-import { Head, router } from '@inertiajs/react';
 
+import DateTime from '@/components/date-time';
 import PaginationBar from '@/components/pagination-bar';
 import SearchInput from '@/components/search-input';
 
-import DateTime from '@/components/date-time';
 import { isDateField } from '@/lib/format-date';
 
 type PaginationLink = { url: string | null; label: string; active: boolean };
@@ -30,6 +30,7 @@ type NotificationRow = {
     event_type: string | null;
     is_read: boolean;
     read_at: string | null;
+    notification_created_at: string | null;
     created_at: string | null;
 };
 
@@ -66,14 +67,14 @@ type CommissionGroup = {
 };
 
 type Props = {
-    notifications: {
+    notifications?: {
         data: NotificationRow[];
         links: PaginationLink[];
         from: number | null;
         to: number | null;
         total: number;
     };
-    unreadCount: number;
+    unreadCount?: number;
     search?: string | null;
     perPage: number;
 };
@@ -128,7 +129,7 @@ const STATUS_TONES = {
     confirmed: 'bg-blue-100 text-blue-800 ring-blue-300 dark:bg-blue-900/30 dark:text-blue-300 dark:ring-blue-700',
     paid: 'bg-green-100 text-green-800 ring-green-300 dark:bg-green-900/30 dark:text-green-300 dark:ring-green-700',
     rejected: 'bg-red-100 text-red-800 ring-red-300 dark:bg-red-900/30 dark:text-red-300 dark:ring-red-700',
-    neutral: 'bg-slate-100 text-slate-700 ring-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700',
+    neutral: 'bg-muted text-muted-foreground ring-border',
 } as const;
 
 function statusTone(status: string | null | undefined): string {
@@ -149,12 +150,12 @@ function lossTone(loss: number | null | undefined): string {
     if (n > 0) return 'text-rose-700 dark:text-rose-300';
     if (n < 0) return 'text-emerald-700 dark:text-emerald-300';
 
-    return 'text-slate-500 dark:text-slate-400';
+    return 'text-muted-foreground';
 }
 
 function StatusBadge({ status }: { status: string | null }) {
     if (!status) {
-        return <span className="text-slate-400 dark:text-slate-600">—</span>;
+        return <span className="text-muted-foreground">—</span>;
     }
 
     return (
@@ -166,8 +167,8 @@ function StatusBadge({ status }: { status: string | null }) {
 
 function ReadBadge({ isRead }: { isRead: boolean }) {
     const tone = isRead
-    ? 'bg-slate-100 text-slate-500 ring-slate-500/20 dark:bg-slate-400/10 dark:text-slate-400 dark:ring-slate-400/20'
-    : 'bg-red-50 text-red-700 ring-red-600/20 dark:bg-red-400/10 dark:text-red-400 dark:ring-red-400/20';
+    ? 'bg-muted text-muted-foreground ring-border'
+    : 'bg-destructive/10 text-destructive ring-destructive/30';
 
     return (
         <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${tone}`}>
@@ -182,7 +183,7 @@ function ThemeToggle({ theme, onToggle }: { theme: Theme; onToggle: () => void }
             type="button"
             onClick={onToggle}
             aria-label="Toggle color theme"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground transition hover:bg-muted hover:text-foreground"
         >
             {theme === 'dark' ? (
                 <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
@@ -197,7 +198,7 @@ function ThemeToggle({ theme, onToggle }: { theme: Theme; onToggle: () => void }
     );
 }
 
-export default function Index({ notifications, unreadCount, search, perPage }: Props) {
+export default function Index({ notifications, unreadCount = 0, search, perPage }: Props) {
     const [theme, toggleTheme] = useTheme();
     const [activeClick, setActiveClick] = useState<{ pk: number; label: string | null } | null>(null);
     const [groups, setGroups] = useState<CommissionGroup[]>([]);
@@ -285,38 +286,38 @@ const closeHistory = () => {
         <>
             <Head title="Notifications" />
 
-            <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-                <div className="mx-auto max-w-[1800px] px-6 py-10">
-                    <div className="mb-6 flex items-center justify-between">
+            <div className="min-w-0 bg-background text-foreground">
+                <div className="mx-auto max-w-[1800px] px-3 py-5 sm:px-6 sm:py-8">
+                    <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                         <div>
-                            <h1 className="text-lg font-semibold tracking-tight">Notifications</h1>
-                            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                            <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Notifications</h1>
+                            <p className="mt-1 text-sm text-muted-foreground">
                                 Events flagged as notification-worthy — status changes or meaningful commission moves.
                             </p>
                         </div>
-                        <div className="flex items-center gap-3">
+                        <div className="flex w-full items-center gap-2 sm:w-auto sm:gap-3">
                             <button
                                 type="button"
                                 onClick={markAllRead}
                                 disabled={markingAll || unreadCount === 0}
-                                className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                                className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
                             >
                                 {markingAll ? 'Marking…' : `Mark all as read${unreadCount ? ` (${unreadCount})` : ''}`}
                             </button>
                             <ThemeToggle theme={theme} onToggle={toggleTheme} />
                         </div>
                     </div>
-<div className="mb-4 flex items-center justify-between gap-4">
-    <div className="flex-1">
+<div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+    <div className="w-full min-w-0 sm:flex-1">
         <SearchInput initialValue={search ?? ''} placeholder="Search by click ID, commission ID, or offer name..." />
     </div>
 
-    <label className="flex shrink-0 items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+    <label className="flex w-full items-center justify-between gap-2 text-sm text-muted-foreground sm:w-auto sm:shrink-0">
         Rows per page
         <select
             value={perPage}
             onChange={(e) => changePerPage(Number(e.target.value))}
-            className="rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-700 shadow-sm transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+            className="min-h-10 rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground shadow-sm transition-colors hover:bg-muted focus:outline-none focus:ring-2 focus:ring-primary/40"
         >
             {PER_PAGE_OPTIONS.map((n) => (
                 <option key={n} value={n}>
@@ -327,12 +328,140 @@ const closeHistory = () => {
     </label>
 </div>
 
+<Deferred
+    data={['notifications', 'unreadCount']}
+    fallback={
+        <div
+            role="status"
+            aria-live="polite"
+            className="mt-4 overflow-hidden rounded-lg border border-border bg-card p-4 shadow-sm"
+        >
+            <p className="mb-4 text-sm text-muted-foreground">Loading recent notifications…</p>
+            <div className="animate-pulse space-y-3">
+                <div className="h-8 rounded bg-muted" />
+                {Array.from({ length: 5 }, (_, index) => (
+                    <div key={index} className="h-12 rounded bg-muted" />
+                ))}
+            </div>
+        </div>
+    }
+>
+{notifications && (
+<>
 <PaginationBar links={notifications.links} from={notifications.from} to={notifications.to} total={notifications.total} />
-                    
-                    <div className="overflow-hidden mt-3 overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+
+                    <div className="mt-3 space-y-3 xl:hidden">
+                        {notifications.data.length === 0 ? (
+                            <div className="rounded-lg border border-border bg-card px-4 py-10 text-center text-sm text-muted-foreground">
+                                No notifications yet.
+                            </div>
+                        ) : (
+                            notifications.data.map((row) => (
+                                <article
+                                    key={row.id}
+                                    className={`min-w-0 rounded-lg border border-border p-4 shadow-sm ${
+                                        row.is_read ? 'bg-card' : 'bg-orange-300/15'
+                                    }`}
+                                >
+                                    <div className="flex min-w-0 items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                            <h2 className="break-words text-sm font-semibold text-foreground">
+                                                {row.offer ?? '—'}
+                                            </h2>
+                                            <p className="mt-1 break-words text-sm text-muted-foreground">
+                                                {row.campaign ?? '—'}
+                                            </p>
+                                        </div>
+                                        <div className="flex shrink-0 flex-col items-end gap-2">
+                                            <StatusBadge status={row.status} />
+                                            <ReadBadge isRead={row.is_read} />
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-4 grid grid-cols-3 gap-2 rounded-md bg-muted/40 p-3 text-sm">
+                                        <div className="min-w-0">
+                                            <p className="text-xs text-muted-foreground">Commission</p>
+                                            <p className="mt-1 break-words font-medium tabular-nums">
+                                                {row.commission ?? '—'}{row.currency ? ` ${row.currency}` : ''}
+                                            </p>
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className="text-xs text-muted-foreground">Final</p>
+                                            <p className="mt-1 break-words font-medium tabular-nums">
+                                                {row.final_commission !== null ? Number(row.final_commission).toFixed(2) : '—'}
+                                            </p>
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className="text-xs text-muted-foreground">Loss</p>
+                                            <p className={`mt-1 break-words font-medium tabular-nums ${lossTone(row.loss)}`}>
+                                                {row.loss !== null ? Number(row.loss).toFixed(2) : '0.00'}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <dl className="mt-4 grid min-w-0 grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+                                        <div className="min-w-0">
+                                            <dt className="text-xs text-muted-foreground">Click ID</dt>
+                                            <dd className="mt-1 break-all font-mono text-xs">{row.click_id ?? '—'}</dd>
+                                        </div>
+                                        <div className="min-w-0">
+                                            <dt className="text-xs text-muted-foreground">Commission ID</dt>
+                                            <dd className="mt-1 break-all font-mono text-xs">{row.commission_id ?? '—'}</dd>
+                                        </div>
+                                        <div className="min-w-0">
+                                            <dt className="text-xs text-muted-foreground">Click total</dt>
+                                            <dd className="mt-1 font-medium tabular-nums">
+                                                {row.click_commission !== null ? Number(row.click_commission).toFixed(2) : '—'}
+                                                {row.currency ? ` ${row.currency}` : ''}
+                                            </dd>
+                                        </div>
+                                        <div className="min-w-0">
+                                            <dt className="text-xs text-muted-foreground">Affiliate / event</dt>
+                                            <dd className="mt-1 break-words">
+                                                {row.affiliate ?? '—'}{row.event_type ? ` · ${row.event_type}` : ''}
+                                            </dd>
+                                        </div>
+                                        <div className="min-w-0">
+                                            <dt className="text-xs text-muted-foreground">Click created</dt>
+                                            <dd className="mt-1 text-xs"><DateTime value={row.click_created_at ?? '—'} /></dd>
+                                        </div>
+                                        <div className="min-w-0">
+                                            <dt className="text-xs text-muted-foreground">Notification created</dt>
+                                            <dd className="mt-1 text-xs"><DateTime value={row.notification_created_at} /></dd>
+                                        </div>
+                                    </dl>
+
+                                    <div className="mt-4 flex flex-col gap-2 border-t border-border pt-3 sm:flex-row">
+                                        <button
+                                            type="button"
+                                            className="inline-flex min-h-10 flex-1 items-center justify-center rounded-md border border-border px-3 text-sm font-medium text-primary hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                                            onClick={() => {
+                                                if (row.click_pk !== null) {
+                                                    openHistory(row.click_pk, row.click_id);
+                                                }
+                                            }}
+                                            disabled={row.click_pk === null}
+                                        >
+                                            View history
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => toggleRead(row.id)}
+                                            disabled={togglingId === row.id}
+                                            className="inline-flex min-h-10 flex-1 items-center justify-center rounded-md border border-border px-3 text-sm font-medium text-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                                        >
+                                            {togglingId === row.id ? 'Updating…' : row.is_read ? 'Mark unread' : 'Mark read'}
+                                        </button>
+                                    </div>
+                                </article>
+                            ))
+                        )}
+                    </div>
+
+                    <div className="mt-3 hidden max-w-full overflow-x-auto touch-pan-x rounded-lg border border-border bg-card shadow-sm xl:block">
                     <table className="w-max min-w-full table-auto text-sm">
                             <thead>
-                                <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium text-slate-500 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400">
+                                <tr className="border-b border-border bg-muted/50 text-left text-xs font-medium text-muted-foreground">
                                     <th className="px-4 py-3">Offer</th>
                                     <th className="px-4 py-3">Campaign</th>
                                     <th className="px-4 py-3">Commission</th>
@@ -355,7 +484,7 @@ const closeHistory = () => {
                             <tbody>
                                 {notifications.data.length === 0 && (
                                     <tr>
-                                        <td colSpan={17} className="px-4 py-10 text-center text-sm text-slate-400 dark:text-slate-600">
+                                        <td colSpan={17} className="px-4 py-10 text-center text-sm text-muted-foreground">
                                             No notifications yet.
                                         </td>
                                     </tr>
@@ -364,32 +493,29 @@ const closeHistory = () => {
                                 {notifications.data.map((row) => (
                                     <tr
                                         key={row.id}
-className={`border-b border-slate-200 transition-colors last:border-0
-    dark:border-slate-700/60 ${
-    row.is_read
-        ? 'even:bg-slate-100/50 hover:bg-sky-100 dark:even:bg-slate-800/50 dark:hover:bg-sky-900/40'
-        : 'bg-orange-100 hover:bg-orange-200 dark:bg-orange-400/20 dark:hover:bg-orange-400/30'
-}`}
+                                        className={`border-b border-border transition-colors last:border-0 ${
+                                            row.is_read ? 'even:bg-muted/40 hover:bg-accent' : 'bg-orange-300/15 hover:bg-primary/15'
+                                        }`}
                                     >
-                                        <td className="px-4 py-3 font-mono text-[13px] text-slate-700 dark:text-slate-300 max-w-[220px] truncate">
+                                        <td className="max-w-[220px] truncate px-4 py-3 font-mono text-[13px] text-foreground">
                                             {row.offer ?? '—'}
                                         </td>
-                                        <td className="px-4 py-3 font-mono text-[13px] text-slate-700 dark:text-slate-300 max-w-[220px] truncate">
+                                        <td className="max-w-[220px] truncate px-4 py-3 font-mono text-[13px] text-foreground">
                                             {row.campaign ?? '—'}
                                         </td>
                                         <td className="px-4 py-3 tabular-nums max-w-[220px] truncate">
                                             {row.commission ?? '—'}
                                             {row.currency ? (
-                                                <span className="ml-1 text-xs text-slate-400 dark:text-slate-600">{row.currency}</span>
+                                                <span className="ml-1 text-xs text-muted-foreground">{row.currency}</span>
                                             ) : null}
                                         </td>
                                         <td className="px-4 py-3">
                                             <StatusBadge status={row.status} />
                                         </td>
-                                        <td className="px-4 py-3 font-mono text-[13px] text-slate-700 dark:text-slate-300 max-w-[220px] truncate">
+                                        <td className="max-w-[220px] truncate px-4 py-3 font-mono text-[13px] text-foreground">
                                             {row.click_id ?? '—'}
                                         </td>
-                                       <td className="px-4 py-3 font-mono text-[13px] text-slate-700 dark:text-slate-300 max-w-[220px] truncate">
+                                       <td className="max-w-[220px] truncate px-4 py-3 font-mono text-[13px] text-foreground">
                                             {row.commission_id ?? '—'}
                                         </td>
                                         <td className="px-4 py-3 tabular-nums">
@@ -401,7 +527,7 @@ className={`border-b border-slate-200 transition-colors last:border-0
                                         <td className={`px-4 py-3 tabular-nums ${lossTone(row.loss)}`}>
                                             {row.loss !== null ? Number(row.loss).toFixed(2) : '0.00'}
                                         </td>
-                                        <td className="px-4 py-3 whitespace-nowrap text-xs text-slate-500 dark:text-slate-400">
+                                        <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">
                                             <DateTime value={(row.click_created_at) ?? '—'}/>
                                         </td>
                                         <td className="px-4 py-3 max-w-[220px] truncate">
@@ -410,7 +536,7 @@ className={`border-b border-slate-200 transition-colors last:border-0
                                         <td className="px-4 py-3 text-right max-w-[220px] truncate">
                                             <button
                                                 type="button"
-                                                className="text-sm font-medium text-indigo-600 hover:text-indigo-700 disabled:cursor-not-allowed disabled:text-slate-300 dark:text-indigo-400 dark:hover:text-indigo-300 dark:disabled:text-slate-700"
+                                                className="text-sm font-medium text-primary underline-offset-4 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                                                 onClick={() => {
                                                     if (row.click_pk !== null) {
                                                         openHistory(row.click_pk, row.click_id);
@@ -428,23 +554,23 @@ className={`border-b border-slate-200 transition-colors last:border-0
                                                 disabled={togglingId === row.id}
                                                 className={`inline-flex items-center rounded-full border px-3 py-0.5 text-xs font-medium shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                                                     row.is_read
-                                                        ? 'text-sm font-medium text-slate-500 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50 dark:text-slate-400 dark:hover:text-slate-200"'
-                                                        : 'border-indigo-300 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 hover:text-indigo-800 dark:border-blue-500/40 dark:bg-blue-400/10 dark:text-indigo-400 dark:hover:text-indigo-300'
+                                                        ? 'text-sm font-medium text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50'
+                                                        : 'border border-destructive/30 bg-destructive/5 text-destructive hover:bg-destructive/10'
                                                 }`}                                            >
                                                 {togglingId === row.id ? '…' : row.is_read ? 'Mark unread' : 'Mark read'}
                                             </button>
                                         </td>
-                                       <td className="px-4 py-3 text-slate-600 dark:text-slate-400 max-w-[220px] truncate">
+                                       <td className="max-w-[220px] truncate px-4 py-3 text-muted-foreground">
                                             {row.affiliate ?? '—'}
                                         </td>
-                                        <td className="px-4 py-3 text-slate-600 dark:text-slate-400 max-w-[220px] truncate">
+                                        <td className="max-w-[220px] truncate px-4 py-3 text-muted-foreground">
                                             {row.event_type ?? '—'}
                                         </td>
                                         <td className="px-4 py-3">
-                                            <DateTime value={row.created_at} />
+                                            <DateTime value={row.read_at} />
                                         </td>
                                         <td className="px-4 py-3">
-                                            <DateTime value={row.updated_at} />
+                                            <DateTime value={row.notification_created_at} />
                                         </td>
 
                                     </tr>
@@ -454,22 +580,25 @@ className={`border-b border-slate-200 transition-colors last:border-0
                     </div>
 
 <PaginationBar links={notifications.links} from={notifications.from} to={notifications.to} total={notifications.total} />
+</>
+)}
+</Deferred>
                 </div>
             </div>
 
             {activeClick && (
                 <div
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm"
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 backdrop-blur-sm sm:p-4"
                     onClick={closeHistory}
                 >
                     <div
-                        className="flex max-h-[85vh] w-[95vw] max-w-[1600px] flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl dark:border-slate-800 dark:bg-slate-900"
+                        className="flex max-h-[calc(100dvh-1rem)] w-full max-w-[1600px] flex-col overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-xl sm:max-h-[85dvh] sm:w-[95vw]"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 dark:border-slate-800">
-                            <div>
+                        <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-6 sm:py-4">
+                            <div className="min-w-0">
                                 <h2 className="text-sm font-semibold">History</h2>
-                                <p className="mt-0.5 font-mono text-xs text-slate-500 dark:text-slate-400">
+                                <p className="mt-0.5 break-all font-mono text-xs text-muted-foreground">
                                     {activeClick.label ?? '—'}
                                 </p>
                             </div>
@@ -477,7 +606,7 @@ className={`border-b border-slate-200 transition-colors last:border-0
                                 type="button"
                                 onClick={closeHistory}
                                 aria-label="Close"
-                                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-300"
+                                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
                             >
                                 <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
                                     <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
@@ -485,9 +614,9 @@ className={`border-b border-slate-200 transition-colors last:border-0
                             </button>
                         </div>
 
-                        <div className="overflow-auto">
+                        <div className="min-h-0 overflow-auto overscroll-contain">
     {loading && (
-        <div className="px-6 py-10 text-center text-sm text-slate-400 dark:text-slate-600">
+        <div className="px-6 py-10 text-center text-sm text-muted-foreground">
             Loading history…
         </div>
     )}
@@ -499,27 +628,27 @@ className={`border-b border-slate-200 transition-colors last:border-0
     )}
 
     {!loading && !error && groups.length === 0 && (
-        <div className="px-6 py-10 text-center text-sm text-slate-400 dark:text-slate-600">
+        <div className="px-6 py-10 text-center text-sm text-muted-foreground">
             No events recorded for this click.
         </div>
     )}
 
     {!loading && !error && groups.length > 0 && (
-        <div className="divide-y divide-slate-200 dark:divide-slate-800">
+        <div className="divide-y divide-border">
             {groups.map((group) => {
                 const events = group.events ?? [];
 
                 return (
-                    <div key={group.commission_id ?? 'none'} className="p-4">
-                        <div className="mb-2 flex items-center gap-2">
-                            <span className="font-mono text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    <div key={group.commission_id ?? 'none'} className="min-w-0 p-3 sm:p-4">
+                        <div className="mb-2 flex flex-wrap items-center gap-2">
+                            <span className="font-mono text-xs font-semibold text-foreground">
                                 Commission: {group.commission_id ?? '—'}
                             </span>
 
                             <StatusBadge status={group.latest_status} />
 
                             {group.snapshot && (
-                                <span className="text-xs text-slate-500 dark:text-slate-400">
+                                <span className="text-xs text-muted-foreground">
                                     final {group.snapshot.value.toFixed(2)},{' '}
                                     <span className={lossTone(group.snapshot.loss)}>
                                         loss {group.snapshot.loss.toFixed(2)}
@@ -527,14 +656,15 @@ className={`border-b border-slate-200 transition-colors last:border-0
                                 </span>
                             )}
 
-                            <span className="text-xs text-slate-400 dark:text-slate-600">
+                            <span className="text-xs text-muted-foreground">
                                 {events.length} update{events.length === 1 ? '' : 's'}
                             </span>
                         </div>
 
-                        <table className="w-full border-collapse text-xs">
+                        <div className="max-w-full overflow-x-auto touch-pan-x">
+                        <table className="min-w-max border-collapse text-xs">
                             <thead>
-                                <tr className="border-b border-slate-200 bg-slate-50 text-left font-medium text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
+                                <tr className="border-b border-border bg-muted/50 text-left font-medium text-muted-foreground">
                                     {HISTORY_COLUMNS.map((col) => (
                                         <th key={col.key} className="whitespace-nowrap px-3 py-2">
                                             {col.label}
@@ -546,16 +676,16 @@ className={`border-b border-slate-200 transition-colors last:border-0
                                 {events.map((ev) => (
                                     <tr
                                         key={ev.id}
-                                        className="border-b border-slate-100 last:border-0 hover:bg-slate-50 dark:border-slate-800/60 dark:hover:bg-slate-800/40"
+                                        className="border-b border-border last:border-0 hover:bg-accent"
                                     >
                                         {HISTORY_COLUMNS.map((col) => (
-                                            <td key={col.key} className="whitespace-nowrap px-3 py-2 text-slate-700 dark:text-slate-300">
+                                            <td key={col.key} className="whitespace-nowrap px-3 py-2 text-foreground">
                                                 {col.key === 'status' ? (
     <StatusBadge status={ev.status} />
 ) : isDateField(col.key) ? (
     <DateTime value={ev[col.key] as string | null} />
 ) : (
-    ev[col.key] ?? <span className="text-slate-300 dark:text-slate-700">—</span>
+    ev[col.key] ?? <span className="text-muted-foreground">—</span>
 )}
                                             </td>
                                         ))}
@@ -563,6 +693,7 @@ className={`border-b border-slate-200 transition-colors last:border-0
                                 ))}
                             </tbody>
                         </table>
+                        </div>
                     </div>
                 );
             })}

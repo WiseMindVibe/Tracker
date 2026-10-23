@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
 import { router } from '@inertiajs/react';
+import { useEffect, useState } from 'react';
 
 type Props = {
     initialValue: string;
@@ -11,7 +11,9 @@ export default function SearchInput({ initialValue, placeholder }: Props) {
 
     useEffect(() => {
         const handle = setTimeout(() => {
-            if (value === initialValue) return;
+            if (value === initialValue) {
+                return;
+            }
 
             router.get(
                 window.location.pathname,
@@ -30,7 +32,7 @@ export default function SearchInput({ initialValue, placeholder }: Props) {
             value={value}
             onChange={(e) => setValue(e.target.value)}
             placeholder={placeholder ?? 'Search...'}
-            className="w-full max-w-sm rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:ring-2 focus:ring-indigo-500/40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-600"
+            className="w-full max-w-sm rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/40"
         />
     );
 }

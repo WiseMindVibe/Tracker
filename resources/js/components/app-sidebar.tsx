@@ -43,8 +43,8 @@ const mainNavItems: NavItem[] = [
         icon: BarChart3,
     },
         {
-        title: 'Inspect ( Future )',
-        href: '#',
+        title: 'Inspect',
+        href: '/inspect',
         icon: Search,
     },
 ];

@@ -2,7 +2,6 @@
 
 namespace App\Services\Reporting;
 
-use App\Services\Commissions\CommissionSnapshotRefresher;
 use DateTimeImmutable;
 use DateTimeZone;
 use InvalidArgumentException;
@@ -33,6 +32,7 @@ final class ReportingService
     private const ALLOWED_DATE_PRESETS = [
         'today',
         'yesterday',
+        'last3',
         'last7',
         'last_week',
         'this_week',
@@ -75,7 +75,6 @@ final class ReportingService
 
     public function __construct(
         private readonly ReportingRepository $repository,
-        private readonly ?CommissionSnapshotRefresher $snapshotRefresher = null,
     ) {}
 
     /**
@@ -85,8 +84,6 @@ final class ReportingService
     public function buildReport(array $payload): array
     {
         [$dateFrom, $dateTo, $datePreset] = $this->resolveDateRange($payload);
-
-        $this->snapshotRefresher?->refresh();
 
         $groupBy = $this->normalizeGroupBy($payload['group_by'] ?? null);
         $level = $this->normalizeLevel($payload['level'] ?? 0, count($groupBy));
@@ -272,6 +269,7 @@ final class ReportingService
         return match ($preset) {
             'today' => [$today->format('Y-m-d'), $today->format('Y-m-d'), 'today'],
             'yesterday' => [$today->modify('-1 day')->format('Y-m-d'), $today->modify('-1 day')->format('Y-m-d'), 'yesterday'],
+            'last3' => [$today->modify('-2 days')->format('Y-m-d'), $today->format('Y-m-d'), 'last3'],
             'last7' => [$today->modify('-6 days')->format('Y-m-d'), $today->format('Y-m-d'), 'last7'],
             'this_week' => [$today->modify('-' . (((int) $today->format('N')) - 1) . ' days')->format('Y-m-d'), $today->format('Y-m-d'), 'this_week'],
             'last_week' => [$today->modify('-' . ((((int) $today->format('N')) - 1) + 7) . ' days')->format('Y-m-d'), $today->modify('-' . (((int) $today->format('N')) - 1) . ' days')->format('Y-m-d'), 'last_week'],
@@ -280,7 +278,7 @@ final class ReportingService
             'last_month' => [$today->modify('first day of previous month')->format('Y-m-d'), $today->modify('last day of previous month')->format('Y-m-d'), 'last_month'],
             'this_year' => [$today->modify('first day of January this year')->format('Y-m-d'), $today->modify('last day of December this year')->format('Y-m-d'), 'this_year'],
             'last_year' => [$today->modify('first day of January last year')->format('Y-m-d'), $today->modify('last day of December last year')->format('Y-m-d'), 'last_year'],
-            'all_time' => ['2000-01-01', $today->format('Y-m-d'), 'all_time'],
+            'all_time' => ['1000-01-01', $today->format('Y-m-d'), 'all_time'],
             default => [$today->format('Y-m-d'), $today->format('Y-m-d'), 'today'],
         };
     }
@@ -352,7 +350,7 @@ final class ReportingService
             $profit = $revenue - $spent;
 
             $cr = $clicks > 0 ? (($conv['total_conversions'] / $clicks) * 100.0) : 0.0;
-            $roi = $spent > 0.0 ? (($profit / $spent) * 100.0) : null;
+            $roi = $spent > 0.0 ? (($profit / $spent)) : null;
             $avgPayout = $qualifiedConversions > 0 ? ($revenue / $qualifiedConversions) : null;
 
             $nextParentFilters = $parentFilters;

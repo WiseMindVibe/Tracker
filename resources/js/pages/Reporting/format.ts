@@ -10,7 +10,9 @@ const MONEY_KEYS = new Set([
     'avg_payout',
 ]);
 
-const PERCENT_KEYS = new Set(['cr', 'roi']);
+const PERCENT_KEYS = new Set(['cr']);
+
+const X_KEYS = new Set(['roi']);
 
 const INT_KEYS = new Set([
     'clicks',
@@ -25,6 +27,7 @@ export function formatCell(key: string, value: number | string | null | undefine
     if (value === null || value === undefined) return '—';
     if (MONEY_KEYS.has(key)) return `$${Number(value).toFixed(2)}`;
     if (PERCENT_KEYS.has(key)) return `${Number(value).toFixed(2)}%`;
+    if (X_KEYS.has(key)) return `${Number(value).toFixed(2)}x`;
     if (INT_KEYS.has(key)) return Number(value).toLocaleString();
     return String(value);
 }

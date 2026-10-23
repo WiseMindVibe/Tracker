@@ -3,12 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Models\Click;
-use App\Models\Conversion;
 use App\Models\ConversionEvent;
+use App\Models\Offer;
 use App\Services\Commissions\CommissionCalculator;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
+use Inertia\Response as InertiaResponse;
+use stdClass;
 
 class ConversionController extends Controller
 {
@@ -16,198 +20,153 @@ class ConversionController extends Controller
         private readonly CommissionCalculator $commissionCalculator,
     ) {}
 
-    private const PER_PAGE_OPTIONS = [15, 50, 100, 250];
+    private const PER_PAGE_OPTIONS = [15, 50, 100];
+
     private const DEFAULT_PER_PAGE = 100;
 
-    public function index(Request $request)
+    public function index(Request $request): InertiaResponse
     {
         $search = $request->input('search');
+        $perPage = $this->perPage($request);
+        $isOfferSearch = filled($search) && Offer::query()
+            ->where('name', 'like', "%{$search}%")
+            ->whereHas('clicks.conversionEvents')
+            ->exists();
 
-        $perPage = (int) $request->input('per_page', self::DEFAULT_PER_PAGE);
-        if (! in_array($perPage, self::PER_PAGE_OPTIONS, true)) {
-            $perPage = self::DEFAULT_PER_PAGE;
-        }
+        $conversions = $isOfferSearch ? null : Inertia::defer(function () use ($search, $perPage) {
+            return $this->clicksQuery()
+                ->when($search, function ($query) use ($search) {
+                    $query->where(function ($query) use ($search) {
+                        $query->where('click_id', 'like', "%{$search}%")
+                            ->orWhereHas('conversionEvents', fn ($event) => $event->where('commission_id', 'like', "%{$search}%"));
+                    });
+                })
+                ->orderByDesc('conversion_events_max_created_at')
+                ->orderByDesc('id')
+                ->paginate($perPage)
+                ->withQueryString()
+                ->through(fn (Click $click) => $this->formatClick($click));
+        });
 
-        $conversions = Conversion::query()
-            ->with([
-                'conversionEvent.affiliateCatalog',
-                'conversionEvent.click.offer',
-                'conversionEvent.click.conversionEvents',
-            ])
-            ->when($search, function ($query, $search) {
-                $query->whereHas('conversionEvent', function ($q) use ($search) {
-                    $q->where('commission_id', 'like', "%{$search}%")
-                        ->orWhereHas('click', function ($c) use ($search) {
-                            $c->where('click_id', 'like', "%{$search}%")
-                                ->orWhereHas(
-                                    'offer',
-                                    fn($o) => $o->where(
-                                        'name',
-                                        'like',
-                                        "%{$search}%"
-                                    )
-                                );
-                        });
-                });
-            })
-            ->get();
-
-        /*
-     * One row per Click ID.
-     *
-     * conversions_events.click_id = clicks.id
-     * clicks.click_id            = actual external Click ID
-     */
-        $grouped = $conversions
-            ->filter(
-                fn(Conversion $conversion) => $conversion->conversionEvent?->click
-            )
-            ->groupBy(
-                fn(Conversion $conversion) => $conversion->conversionEvent->click->click_id
-            )
-            ->map(function ($conversionGroup) {
-
-                /** @var Conversion $firstConversion */
-                $firstConversion = $conversionGroup->first();
-
-                $firstEvent = $firstConversion->conversionEvent;
-                $click = $firstEvent?->click;
-                $catalog = $firstEvent?->affiliateCatalog;
-
-                if (! $click) {
-                    return null;
-                }
-
-                /*
- * ---------------------------------------------------------
- * COMMISSIONS
- * ---------------------------------------------------------
- *
- * Calculate the CURRENT value of every commission_id.
- *
- * YieldKit = delta
- * Oponia   = absolute
- */
-                $commissions = $click->conversionEvents
-                    ->filter(fn($event) => ! empty($event->commission_id))
-                    ->groupBy('commission_id')
-                    ->map(function ($events, $commissionId) use ($catalog) {
-                        $snapshot = $this->commissionCalculator->calculate($catalog, $events);
-
-                        return [
-                            'commission_id' => (string) $commissionId,
-                            'status' => $snapshot['status'],
-                            'commission' => $snapshot['value'],
-                            'accumulated' => $snapshot['accumulated'],
-                            'loss' => $snapshot['loss'],
-                            'events_count' => $snapshot['events_count'],
-                            'commission_mode' => $catalog?->commission_mode,
-                            'calculation_mode' => $snapshot['mode'],
-                            'calculation_rule' => $snapshot['rule'],
-                        ];
-                    })
-                    ->values()
-                    ->all();
-
-                /*
- * ---------------------------------------------------------
- * FINAL COMMISSION FOR THE CLICK
- * ---------------------------------------------------------
- *
- * The final click commission is simply the sum of the
- * CURRENT values of all commission IDs belonging to it.
- *
- * This works for BOTH:
- *
- * YieldKit:
- *     commission_id A = 0
- *     commission_id B = 5
- *     total = 5
- *
- * Oponia:
- *     commission_id A = 6.40
- *     commission_id B = 0.51
- *     total = 6.91
- */
-                $commission = collect($commissions)->sum(function ($item) {
-                    return (float) ($item['commission'] ?? 0);
-                });
-
-                $rejectedCommission = collect($commissions)
-                    ->filter(fn($item) => strtolower($item['status'] ?? '') === 'rejected')
-                    ->sum(fn($item) => (float) ($item['commission'] ?? 0));
-
-                $commission -= $rejectedCommission;
-
-                /*
-             * Get the latest event for the overall click.
-             */
-                $latestEvent = $click->conversionEvents
-                    ->sortByDesc('created_at')
-                    ->first();
-
-                return [
-                    'id' => $firstConversion->id,
-
-                    'click_id' => $click->click_id,
-                    'click_pk' => $click->id,
-
-                    'offer' => $click->offer?->name,
-
-                    // FINAL commission for the entire click
-                    'commission' => $commission,
-
-                    'commission_mode' => $catalog?->commission_mode,
-
-                    // Individual commission IDs
-                    'commissions' => $commissions,
-
-                    'loss' => collect($commissions)->sum(
-                        fn($item) => (float) ($item['loss'] ?? 0)
-                    ),
-
-                    // ALL events across all commission IDs
-                    'events_count' => $click->conversionEvents->count(),
-
-                    'created_at' => $click->conversionEvents->min('created_at'),
-                    'updated_at' => $latestEvent?->created_at,
-                ];
-            })
-            ->filter()
-            ->sortByDesc('updated_at')
-            ->values();
-
-        /*
-     * Manual pagination because grouping happens after retrieving
-     * the conversion records.
-     */
-        $perPage = 25;
-        $currentPage = LengthAwarePaginator::resolveCurrentPage();
-
-        $items = $grouped
-            ->slice(($currentPage - 1) * $perPage, $perPage)
-            ->values();
-
-        $conversions = new LengthAwarePaginator(
-            $items,
-            $grouped->count(),
-            $perPage,
-            $currentPage,
-            [
-                'path' => LengthAwarePaginator::resolveCurrentPath(),
-                'query' => $request->query(),
-            ]
-        );
+        $offerGroups = $isOfferSearch ? Inertia::defer(function () use ($search, $perPage) {
+            return DB::table('offers')
+                ->join('clicks', 'clicks.offer_id', '=', 'offers.id')
+                ->join('conversions_events', 'conversions_events.click_id', '=', 'clicks.id')
+                ->leftJoin('affiliate_accounts', 'affiliate_accounts.id', '=', 'offers.affiliate_account_id')
+                ->leftJoin('affiliate_catalog', 'affiliate_catalog.id', '=', 'affiliate_accounts.affiliate_catalog_id')
+                ->where('offers.name', 'like', "%{$search}%")
+                ->groupBy('offers.id', 'offers.name', 'affiliate_catalog.name')
+                ->select('offers.id', 'offers.name')
+                ->selectRaw('affiliate_catalog.name as affiliate')
+                ->selectRaw('COUNT(DISTINCT clicks.id) as conversions_count')
+                ->selectRaw('MAX(conversions_events.created_at) as latest_conversion_at')
+                ->orderByDesc('latest_conversion_at')
+                ->orderBy('offers.name')
+                ->orderBy('offers.id')
+                ->paginate($perPage)
+                ->withQueryString()
+                ->through(fn (stdClass $offer) => [
+                    'id' => (int) $offer->id,
+                    'name' => $offer->name,
+                    'affiliate' => $offer->affiliate,
+                    'conversions_count' => (int) $offer->conversions_count,
+                    'latest_conversion_at' => $offer->latest_conversion_at,
+                ]);
+        }) : null;
 
         return Inertia::render('Conversions/index', [
             'conversions' => $conversions,
+            'offerGroups' => $offerGroups,
+            'searchMode' => $isOfferSearch ? 'offers' : 'conversions',
             'search' => $search,
             'perPage' => $perPage,
-
         ]);
     }
 
-    public function history(Click $click)
+    public function offerConversions(Request $request, Offer $offer): JsonResponse
+    {
+        $conversions = $this->clicksQuery()
+            ->where('offer_id', $offer->id)
+            ->orderByDesc('conversion_events_max_created_at')
+            ->orderByDesc('id')
+            ->paginate($this->perPage($request))
+            ->through(fn (Click $click) => $this->formatClick($click));
+
+        return response()->json($conversions);
+    }
+
+    /** @return Builder<Click> */
+    private function clicksQuery(): Builder
+    {
+        return Click::query()
+            ->whereHas('conversionEvents')
+            ->withMax('conversionEvents', 'created_at')
+            ->with([
+                'offer',
+                'conversionEvents.affiliateCatalog',
+            ]);
+    }
+
+    /** @return array<string, mixed> */
+    private function formatClick(Click $click): array
+    {
+        $commissions = $click->conversionEvents
+            ->filter(fn ($event) => ! empty($event->commission_id))
+            ->groupBy(fn ($event) => $event->affiliate_catalog_id.':'.$event->commission_id)
+            ->map(function ($events) {
+                $catalog = $events->first()->affiliateCatalog;
+                $snapshot = $this->commissionCalculator->calculate($catalog, $events);
+
+                return [
+                    'affiliate_catalog_id' => $catalog->id,
+                    'affiliate' => $catalog->name,
+                    'commission_id' => (string) $events->first()->commission_id,
+                    'status' => $snapshot['status'],
+                    'commission' => $snapshot['value'],
+                    'accumulated' => $snapshot['accumulated'],
+                    'loss' => $snapshot['loss'],
+                    'events_count' => $snapshot['events_count'],
+                    'commission_mode' => $catalog->commission_mode,
+                    'calculation_mode' => $snapshot['mode'],
+                    'calculation_rule' => $snapshot['rule'],
+                ];
+            })
+            ->values();
+
+        $commission = $commissions->sum(fn ($item) => (float) $item['commission']);
+        $rejectedCommission = $commissions
+            ->filter(fn ($item) => strtolower($item['status'] ?? '') === 'rejected')
+            ->sum(fn ($item) => (float) $item['commission']);
+        $latestEvent = $click->conversionEvents->sortByDesc('created_at')->first();
+
+        return [
+            'id' => $click->id,
+            'click_id' => $click->click_id,
+            'click_pk' => $click->id,
+            'offer' => $click->offer?->name,
+            'affiliates' => $click->conversionEvents
+                ->map(fn ($event) => $event->affiliateCatalog?->name)
+                ->filter()
+                ->unique()
+                ->values(),
+            'commission' => $commission - $rejectedCommission,
+            'commission_mode' => $commissions->first()['commission_mode'] ?? null,
+            'commissions' => $commissions,
+            'loss' => $commissions->sum(fn ($item) => (float) $item['loss']),
+            'events_count' => $click->conversionEvents->count(),
+            'created_at' => $click->conversionEvents->min('created_at'),
+            'updated_at' => $latestEvent?->created_at,
+        ];
+    }
+
+    private function perPage(Request $request): int
+    {
+        $perPage = (int) $request->input('per_page', self::DEFAULT_PER_PAGE);
+
+        return in_array($perPage, self::PER_PAGE_OPTIONS, true) ? $perPage : self::DEFAULT_PER_PAGE;
+    }
+
+    public function history(Click $click): JsonResponse
     {
         $events = ConversionEvent::with('affiliateCatalog')
             ->where('click_id', $click->id)
@@ -216,7 +175,7 @@ class ConversionController extends Controller
             ->get();
 
         $groups = $events
-            ->groupBy(fn($event) => $event->commission_id ?? '—')
+            ->groupBy(fn ($event) => $event->commission_id ?? '—')
             ->map(function ($commissionEvents, $commissionId) {
                 $catalog = $commissionEvents->first()->affiliateCatalog;
                 $snapshot = $catalog

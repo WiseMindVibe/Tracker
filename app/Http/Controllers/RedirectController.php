@@ -53,12 +53,12 @@ class RedirectController extends Controller
             if (! $debug) {
                 return $this->safeRedirect($fallbackURL);
             } else {
-                return 'Campign Country MISMATCH! Got: ' . $country . '. Expected: ' . $campaignOffer->offer->country;
+                return 'Campign Country MISMATCH! Got: '.$country.'. Expected: '.$campaignOffer->offer->country;
             }
         }
 
         $cost = $request->query('cost');
-        if (!is_numeric($cost)) {
+        if (! is_numeric($cost)) {
             $cost = 0.0;
         } else {
             $cost = (float) $cost;
@@ -126,7 +126,7 @@ class RedirectController extends Controller
                 json_encode($payload)
             );
 
-            $blogURL = $campaignOffer->offer->blog->domain . '?ref=' . urlencode($reference);
+            $blogURL = $campaignOffer->offer->blog->domain.'?ref='.urlencode($reference);
 
             $campaignOffer->increment('current_views');
 
@@ -137,7 +137,6 @@ class RedirectController extends Controller
                 'click_id' => $click['click_id'],
                 'status' => 'direct',
             ]);
-
 
             $campaignOffer->increment('current_views');
 
@@ -150,11 +149,10 @@ class RedirectController extends Controller
 
             $affiliateUrl =
                 $campaignOffer->offer->affiliate_link
-                . $separator
-                . $campaignOffer->offer->affiliateAccount->affiliateCatalog->affiliate_token
-                . '='
-                . $click['click_id'];
-
+                .$separator
+                .$campaignOffer->offer->affiliateAccount->affiliateCatalog->affiliate_token
+                .'='
+                .$click['click_id'];
 
             return $this->safeRedirect($affiliateUrl);
         }
@@ -170,7 +168,7 @@ class RedirectController extends Controller
             ->with('offer')
             ->get()
             // / - Check if offer is active
-            ->filter(fn($campaignOffer) => $campaignOffer->offer?->status === 'active');
+            ->filter(fn ($campaignOffer) => $campaignOffer->offer?->status === 'active');
 
         if ($campaignOffers->isEmpty()) {
             return null;

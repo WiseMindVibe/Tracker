@@ -4,6 +4,7 @@ use App\Http\Controllers\BlogRelayController;
 use App\Http\Controllers\BufferRelayController;
 use App\Http\Controllers\ConversionController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\InspectController;
 use App\Http\Controllers\ModuleController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\RedirectController;
@@ -13,6 +14,8 @@ Route::inertia('/', 'welcome')->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/inspect', [InspectController::class, 'index'])->name('inspect.index');
+    Route::post('/inspect/analytics', [InspectController::class, 'analytics'])->name('inspect.analytics');
 
     Route::get('/m/{module}', [ModuleController::class, 'index'])->name('modules.index');
     Route::get('/m/{module}/create', [ModuleController::class, 'create'])->name('modules.create');
@@ -23,6 +26,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/m/{module}/{id}', [ModuleController::class, 'destroy'])->name('modules.destroy');
 
     Route::get('/conversions', [ConversionController::class, 'index'])->name('conversions.index');
+    Route::get('/conversions/offers/{offer}', [ConversionController::class, 'offerConversions'])
+        ->name('conversions.offers.show');
     Route::get('/conversions/{click}/history', [ConversionController::class, 'history'])->name('conversions.history');
 
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');

@@ -10,7 +10,7 @@ return [
         'stop' => 'https://api.hilltopads.com/advertiser/stopCampaign',
     ],
     'popcash' => [
-        'key' => 'apikey',
+        'key' => 'X-Api-Key',
         'stop' => 'https://api.popcash.net/campaigns/', // append {id}
     ],
 ];

@@ -4,6 +4,8 @@ namespace Database\Seeders;
 
 use App\Models\AffiliateCatalog;
 use App\Models\AffiliateFieldDefinition;
+use App\Models\TrafficAccount;
+use App\Models\TrafficAccountCredential;
 use App\Models\TrafficCatalog;
 use App\Models\TrafficFieldDefinition;
 use Illuminate\Database\Seeder;
@@ -137,7 +139,7 @@ class CatalogSeeder extends Seeder
 
     protected function HilltopAds(): void
     {
-        $hilltopAds = TrafficCatalog::updateOrCreate(
+        $hilltop = TrafficCatalog::updateOrCreate(
             ['slug' => 'hilltopads'],
             [
                 'name' => 'HilltopAds',
@@ -145,18 +147,35 @@ class CatalogSeeder extends Seeder
             ]
         );
 
-        TrafficFieldDefinition::updateOrCreate(
+        $hilltopFields = TrafficFieldDefinition::updateOrCreate(
             [
-                'traffic_catalog_id' => $hilltopAds->id,
-                'field_key' => 'key',
+                'traffic_catalog_id' => $hilltop->id,
             ],
             [
+                'field_key' => 'key',
                 'label' => 'API Key',
+            ]
+        );
+
+        $hilltopAccount = TrafficAccount::firstOrCreate(
+            ['traffic_catalog_id' => $hilltop->id],
+            [
+                // any other required columns, e.g. 'name' => 'Popcash Account',
+            ]
+        );
+
+        TrafficAccountCredential::updateOrCreate(
+            [
+                'traffic_account_id' => $hilltopAccount->id,
+            ],
+            [
+                'label' => $hilltopFields->label,
+                'key' => $hilltopFields->field_key, // the actual secret, ideally encrypted via a model cast
             ]
         );
     }
 
-    protected function Popcash(): void
+    protected function popcash(): void
     {
         $popcash = TrafficCatalog::updateOrCreate(
             ['slug' => 'popcash'],
@@ -166,13 +185,30 @@ class CatalogSeeder extends Seeder
             ]
         );
 
-        TrafficFieldDefinition::updateOrCreate(
+        $popcashField = TrafficFieldDefinition::updateOrCreate(
             [
                 'traffic_catalog_id' => $popcash->id,
-                'field_key' => 'apikey',
             ],
             [
+                'field_key' => 'X-Api-Key',
                 'label' => 'API Key',
+            ]
+        );
+
+        $popcashAccount = TrafficAccount::firstOrCreate(
+            ['traffic_catalog_id' => $popcash->id],
+            [
+                // any other required columns, e.g. 'name' => 'Popcash Account',
+            ]
+        );
+
+        TrafficAccountCredential::updateOrCreate(
+            [
+                'traffic_account_id' => $popcashAccount->id,
+            ],
+            [
+                'label' => $popcashField->label,
+                'key' => $popcashField->field_key, // the actual secret, ideally encrypted via a model cast
             ]
         );
     }

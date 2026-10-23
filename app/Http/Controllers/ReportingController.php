@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Services\Commissions\CommissionSnapshotRefresher;
 use App\Services\Reporting\ReportingAccessScope;
 use App\Services\Reporting\ReportingRepository;
 use App\Services\Reporting\ReportingService;
@@ -37,15 +36,16 @@ final class ReportingController extends Controller
 
     public function index(Request $request): InertiaResponse
     {
-        $today = now()->toDateString();
+        $today = now();
 
         return Inertia::render('Reporting/Index', [
             'defaultDatePreset' => 'last7',
-            'defaultDateFrom' => $today,
-            'defaultDateTo' => $today,
+            'defaultDateFrom' => $today->copy()->subDays(6)->toDateString(),
+            'defaultDateTo' => $today->toDateString(),
             'defaultGroupBy' => ['offer', 'campaign', 'os', 'browser'],
             'availableGroups' => self::AVAILABLE_GROUPS,
             'apiEndpoint' => route('reporting.report'),
+            'timezone' => config('app.timezone'),
         ]);
     }
 
@@ -56,7 +56,7 @@ final class ReportingController extends Controller
         $service = new ReportingService(new ReportingRepository(
             $scope->allowedOfferIds($user),
             $scope->allowedCampaignIds($user),
-        ), app(CommissionSnapshotRefresher::class));
+        ));
 
         try {
             return response()->json($service->buildReport($request->all()));
@@ -65,7 +65,7 @@ final class ReportingController extends Controller
         } catch (Throwable $e) {
             report($e);
 
-            //return response()->json(['error' => 'Unable to build report'], 500);
+            // return response()->json(['error' => 'Unable to build report'], 500);
             return response()->json([
                 'error' => $e->getMessage(),
             ], 500);

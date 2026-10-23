@@ -63,6 +63,7 @@ export interface ReportingIndexProps {
     defaultGroupBy: string[];
     availableGroups: Record<string, string>;
     apiEndpoint: string;
+    timezone: string;
 }
 
 export type MetricColumn = [key: string, label: string];

@@ -31,11 +31,11 @@ class ModuleController extends Controller
         $sortDirection = $sortDirection === 'desc' ? 'desc' : 'asc';
 
         $activeColumn = collect($table->columns)
-            ->first(fn($column) => ($column->sortable ?? false) && $column->field === $sortColumn);
+            ->first(fn ($column) => ($column->sortable ?? false) && $column->field === $sortColumn);
 
         if (! $activeColumn && $table->defaultSort) {
             $activeColumn = collect($table->columns)
-                ->first(fn($column) => $column->field === $table->defaultSort['column']);
+                ->first(fn ($column) => $column->field === $table->defaultSort['column']);
             $sortColumn = $table->defaultSort['column'] ?? null;
             $sortDirection = $table->defaultSort['direction'] ?? 'asc';
         }
@@ -50,7 +50,7 @@ class ModuleController extends Controller
         $searchField = $table->searchField ?? 'name';
 
         if ($search !== null && $search !== '' && $this->modelHasColumn($config->model(), $searchField)) {
-            $query->where($searchField, 'like', '%' . $search . '%');
+            $query->where($searchField, 'like', '%'.$search.'%');
         }
         // /SEARCH
 
@@ -112,9 +112,9 @@ class ModuleController extends Controller
         [$a, $b] = $unique;
 
         return $config->model()::query()
-            ->when($ignoreId, fn($q) => $q->where('id', '!=', $ignoreId))
+            ->when($ignoreId, fn ($q) => $q->where('id', '!=', $ignoreId))
             ->get([$a, $b])
-            ->map(fn($row) => [(string) $row->{$a}, (string) $row->{$b}])
+            ->map(fn ($row) => [(string) $row->{$a}, (string) $row->{$b}])
             ->all();
     }
 
@@ -129,9 +129,17 @@ class ModuleController extends Controller
 
         $validated = $request->validate($rules);
 
-        $model = $config->model()::create(
-            collect($validated)->only(collect($config->fields())->pluck('field')->all())->all()
-        );
+        $attributes = collect($validated)->only(collect($config->fields())->pluck('field')->all())->all();
+        $modelClass = $config->model();
+        $model = new $modelClass;
+        $model->fill($attributes);
+
+        if (isset($attributes['uuid'])) {
+            // Preserve the UUID shown by the create form without allowing it in mass-assigned updates.
+            $model->uuid = $attributes['uuid'];
+        }
+
+        $model->save();
 
         foreach ($repeaters as $repeater) {
             $rows = $validated[$repeater->relation] ?? [];
@@ -140,8 +148,8 @@ class ModuleController extends Controller
             }
         }
 
-        return redirect('/m/' . $module)
-            ->with('success', $config->titles()['header_s'] . ' created.');
+        return redirect('/m/'.$module)
+            ->with('success', $config->titles()['header_s'].' created.');
     }
 
     public function edit(string $module, int $id, ModuleManager $manager): Response
@@ -161,7 +169,7 @@ class ModuleController extends Controller
         [$a, $b] = $unique;
         $table = (new $modelClass)->getTable();
 
-        $rule = Rule::unique($table)->where(fn($q) => $q->where($a, $request->input($a)));
+        $rule = Rule::unique($table)->where(fn ($q) => $q->where($a, $request->input($a)));
         if ($ignoreId) {
             $rule = $rule->ignore($ignoreId);
         }
@@ -190,10 +198,10 @@ class ModuleController extends Controller
         $repeaterData = [];
         foreach ($repeaters as $repeater) {
             $repeaterData[$repeater->relation] = $record->{$repeater->relation}
-                ->map(fn($row) => array_merge(
+                ->map(fn ($row) => array_merge(
                     ['id' => $row->id],
                     collect($repeater->fields)->mapWithKeys(
-                        fn($f) => [$f->field => (string) $row->{$f->field}]
+                        fn ($f) => [$f->field => (string) $row->{$f->field}]
                     )->all()
                 ))
                 ->values()
@@ -214,7 +222,7 @@ class ModuleController extends Controller
         $data = array_merge($data, $this->trafficCredentialDefinitionsData($config->repeaters()));
         $data = array_merge($data, $this->trackingLinkData($config->fields()));
         $data = array_merge($data, $this->merchantIdLabelData($config->fields()));
-        if (collect($config->fields())->contains(fn($f) => $f->type === 'tracking_link')) {
+        if (collect($config->fields())->contains(fn ($f) => $f->type === 'tracking_link')) {
             $data['uuid'] = $record->uuid;
         }
 
@@ -260,8 +268,8 @@ class ModuleController extends Controller
             }
         }
 
-        return redirect('/m/' . $module)
-            ->with('success', $config->titles()['header_s'] . ' updated.');
+        return redirect('/m/'.$module)
+            ->with('success', $config->titles()['header_s'].' updated.');
     }
 
     private function rulesFor(array $fields): array
@@ -271,8 +279,8 @@ class ModuleController extends Controller
             $fieldRules = [$field->required ? 'required' : 'nullable'];
             $fieldRules[] = match ($field->type) {
                 'url' => 'url',
-                'select' => 'in:' . implode(',', array_keys($field->options ?? [])),
-                'country' => 'in:' . implode(',', array_column($field->options ?? [], 'value')),
+                'select' => 'in:'.implode(',', array_keys($field->options ?? [])),
+                'country' => 'in:'.implode(',', array_column($field->options ?? [], 'value')),
                 default => 'string',
             };
             $rules[$field->field] = $fieldRules;
@@ -288,7 +296,7 @@ class ModuleController extends Controller
             $rules[$repeater->relation] = [
                 $repeater->min > 0 ? 'required' : 'nullable',
                 'array',
-                'min:' . $repeater->min,
+                'min:'.$repeater->min,
             ];
             $rules["{$repeater->relation}.*.id"] = ['nullable', 'integer'];
 
@@ -307,7 +315,7 @@ class ModuleController extends Controller
 
     private function affiliateCredentialDefinitionsData(array $repeaters): array
     {
-        $hasCredentials = collect($repeaters)->contains(fn($r) => $r->relation === 'affiliateCredentials');
+        $hasCredentials = collect($repeaters)->contains(fn ($r) => $r->relation === 'affiliateCredentials');
 
         if (! $hasCredentials) {
             return [];
@@ -317,7 +325,7 @@ class ModuleController extends Controller
             'affiliateFieldDefinitions' => AffiliateFieldDefinition::orderBy('id')
                 ->get()
                 ->groupBy('affiliate_catalog_id')
-                ->map(fn($group) => $group->map(fn($d) => [
+                ->map(fn ($group) => $group->map(fn ($d) => [
                     'label' => $d->label,
                     'key' => $d->field_key,
                 ])->values())
@@ -327,7 +335,7 @@ class ModuleController extends Controller
 
     private function trafficCredentialDefinitionsData(array $repeaters): array
     {
-        $hasCredentials = collect($repeaters)->contains(fn($r) => $r->relation === 'trafficCredentials');
+        $hasCredentials = collect($repeaters)->contains(fn ($r) => $r->relation === 'trafficCredentials');
 
         if (! $hasCredentials) {
             return [];
@@ -337,7 +345,7 @@ class ModuleController extends Controller
             'trafficFieldDefinitions' => TrafficFieldDefinition::orderBy('id')
                 ->get()
                 ->groupBy('traffic_catalog_id')
-                ->map(fn($group) => $group->map(fn($d) => [
+                ->map(fn ($group) => $group->map(fn ($d) => [
                     'label' => $d->label,
                     'key' => $d->field_key,
                 ])->values())
@@ -347,7 +355,7 @@ class ModuleController extends Controller
 
     private function trackingLinkData(array $fields): array
     {
-        $hasTrackingLink = collect($fields)->contains(fn($f) => $f->type === 'tracking_link');
+        $hasTrackingLink = collect($fields)->contains(fn ($f) => $f->type === 'tracking_link');
 
         if (! $hasTrackingLink) {
             return [];
@@ -359,7 +367,7 @@ class ModuleController extends Controller
             'trackerRedirectPath' => config('tracker.redirect_path'),
             'trafficAccountSlugs' => TrafficAccount::with('trafficCatalog')
                 ->get()
-                ->mapWithKeys(fn($a) => [(string) $a->id => $a->trafficCatalog?->slug])
+                ->mapWithKeys(fn ($a) => [(string) $a->id => $a->trafficCatalog?->slug])
                 ->filter()
                 ->all(),
         ];
@@ -367,7 +375,7 @@ class ModuleController extends Controller
 
     private function merchantIdLabelData(array $fields): array
     {
-        $hasMerchantField = collect($fields)->contains(fn($f) => $f->field === 'merchant_id');
+        $hasMerchantField = collect($fields)->contains(fn ($f) => $f->field === 'merchant_id');
 
         if (! $hasMerchantField) {
             return [];
@@ -376,7 +384,7 @@ class ModuleController extends Controller
         return [
             'merchantIdLabels' => AffiliateAccount::with('affiliateCatalog')
                 ->get()
-                ->mapWithKeys(fn($account) => [
+                ->mapWithKeys(fn ($account) => [
                     (string) $account->id => $account->affiliateCatalog?->merchant_id_label ?? 'Merchant ID',
                 ])
                 ->all(),
@@ -392,15 +400,15 @@ class ModuleController extends Controller
             $record->delete();
         } catch (QueryException $e) {
             if ($this->isForeignKeyViolation($e)) {
-                return redirect('/m/' . $module . '/' . $id . '/edit')
+                return redirect('/m/'.$module.'/'.$id.'/edit')
                     ->with('error', $this->foreignKeyErrorMessage($e, $config->titles()['header_s']));
             }
 
             throw $e;
         }
 
-        return redirect('/m/' . $module)
-            ->with('success', $config->titles()['header_s'] . ' deleted.');
+        return redirect('/m/'.$module)
+            ->with('success', $config->titles()['header_s'].' deleted.');
     }
 
     private function isForeignKeyViolation(QueryException $e): bool
